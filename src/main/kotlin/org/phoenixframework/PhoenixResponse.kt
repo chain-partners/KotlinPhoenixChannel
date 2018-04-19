@@ -10,6 +10,6 @@ data class PhoenixResponse(
     val payload: JsonNode?,
     val ref: String?) {
 
-  val repsonseStatus: String? = payload?.get("status")?.textValue()
+  val responseStatus: String? = payload?.get("status")?.textValue()
   val reason = payload?.get("reason")?.textValue()
 }

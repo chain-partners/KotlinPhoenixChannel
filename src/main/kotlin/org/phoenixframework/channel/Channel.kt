@@ -9,20 +9,23 @@ import org.phoenixframework.PhoenixResponse
 import org.phoenixframework.PhoenixRequestSender
 import java.io.IOException
 import java.util.ArrayList
+import java.util.concurrent.ConcurrentHashMap
 
 class Channel
-internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: String, private val objectMapper: ObjectMapper) {
-  private val bindings = ArrayList<EventBinding>()
+internal constructor(private val requestSender: PhoenixRequestSender, val topic: String, private val objectMapper: ObjectMapper) {
+
+  private val refBindings = ConcurrentHashMap<String, MessageCallback>()
+  private val eventBindings = ArrayList<EventBinding>()
 
   private var state = ChannelState.CLOSED
 
   private fun pushMessage(event: String, payload: JsonNode? = null, timeout: Long? = null, callback: MessageCallback? = null) {
-    val ref = pushDelegate.makeRef()
+    val ref = requestSender.makeRef()
     val request = PhoenixRequest(topic, event, payload, ref)
-    pushDelegate.pushMessage(request, timeout, callback)
+    requestSender.pushMessage(request, timeout, callback)
     callback?.let {
-      synchronized(bindings) {
-        bindings.add(EventBinding(event, callback))
+      synchronized(refBindings) {
+        refBindings[ref] = callback
       }
     }
   }
@@ -50,10 +53,10 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
    * Do not call this method except for testing and [Socket].
    *
    * @param triggerEvent The event name
-   * @param envelope     The phoenixResponse's envelope relating to the event or null if not relevant.
+   * @param envelope     The response's envelope relating to the event or null if not relevant.
    */
-  internal fun retrieveMessage(phoenixResponse: PhoenixResponse) {
-    when (phoenixResponse.event) {
+  internal fun retrieveMessage(response: PhoenixResponse) {
+    when (response.event) {
       PhoenixEvent.JOIN.phxEvent -> {
         state = ChannelState.JOINED
       }
@@ -61,12 +64,15 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
         state = ChannelState.CLOSED
       }
       PhoenixEvent.ERROR.phxEvent -> {
-        retrieveFailure(response = phoenixResponse)
+        retrieveFailure(response = response)
       }
       // Includes org.phoenixframework.PhoenixEvent.REPLY
       else -> {
-        bindings.filter { it.event == phoenixResponse.event }
-            .forEach { it.callback?.onMessage("ok", phoenixResponse) }
+        response.ref?.let {
+          trigger(it, response)
+        }
+        eventBindings.filter { it.event == response.event }
+            .forEach { it.callback?.onMessage("ok", response) }
       }
     }
   }
@@ -74,30 +80,39 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
   internal fun retrieveFailure(throwable: Throwable? = null, response: PhoenixResponse? = null) {
     state = ChannelState.ERRORED
     response?.event.let { event ->
-      bindings.filter { it.event == event }
+      eventBindings.filter { it.event == event }
           .forEach { it.callback?.onFailure(throwable, response) }
     }
     // TODO(changhee): Rejoin org.phoenixframework.channel with timer.
+  }
+
+  private fun trigger(ref: String, response: PhoenixResponse) {
+    val callback = refBindings[ref]
+    when (response.responseStatus) {
+      "ok" -> callback?.onMessage("ok", response)
+      else -> callback?.onFailure(response = response)
+    }
+    refBindings.remove(ref)
   }
 
   /**
    * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
   private fun canPush(): Boolean {
-    return this.state === ChannelState.JOINED && this.pushDelegate.canPushMessage()
+    return this.state === ChannelState.JOINED && this.requestSender.canPushMessage()
   }
 
   @Throws(IOException::class)
   fun leave(callback: MessageCallback) {
     pushMessage(PhoenixEvent.LEAVE.phxEvent, callback = object : MessageCallback {
-      override fun onMessage(status: String, phoenixResponse: PhoenixResponse?) {
-        if (phoenixResponse?.event == PhoenixEvent.CLOSE.phxEvent) {
-          callback.onMessage(status, phoenixResponse)
+      override fun onMessage(status: String, response: PhoenixResponse?) {
+        if (response?.event == PhoenixEvent.CLOSE.phxEvent) {
+          callback.onMessage(status, response)
         }
       }
 
-      override fun onFailure(throwable: Throwable?, phoenixResponse: PhoenixResponse?) {
-        callback.onFailure(throwable, phoenixResponse)
+      override fun onFailure(throwable: Throwable?, response: PhoenixResponse?) {
+        callback.onFailure(throwable, response)
       }
     })
   }
@@ -109,8 +124,8 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
    * @return The instance's self
    */
   fun off(event: String): Channel {
-    synchronized(bindings) {
-      val bindingIter = bindings.iterator()
+    synchronized(eventBindings) {
+      val bindingIter = eventBindings.iterator()
       while (bindingIter.hasNext()) {
         if (bindingIter.next().event == event) {
           bindingIter.remove()
@@ -127,8 +142,8 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
    * @return The instance's self
    */
   fun on(event: String, callback: MessageCallback): Channel {
-    synchronized(bindings) {
-      this.bindings.add(EventBinding(event, callback))
+    synchronized(eventBindings) {
+      this.eventBindings.add(EventBinding(event, callback))
     }
     return this
   }
@@ -155,12 +170,7 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
   override fun toString(): String {
     return "org.phoenixframework.channel.Channel{" +
         "topic='" + topic + '\'' +
-        ", bindings(" + bindings.size + ")=" + bindings +
+        ", eventBindings(" + eventBindings.size + ")=" + eventBindings +
         '}'
-  }
-
-  companion object {
-
-    val DEFAULT_TIMEOUT: Long = 5000
   }
 }
