@@ -25,6 +25,8 @@ class Socket @JvmOverloads constructor(
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
   private var refNumber = 1
 
+  private var listeners = mutableSetOf<PhoenixSocketListener>()
+
   var openCallback: (() -> Unit)? = null
   var closedCallback: (() -> Unit)? = null
   var messageCallback: ((Message) -> Unit)? = null
