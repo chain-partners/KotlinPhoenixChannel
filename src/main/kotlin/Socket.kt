@@ -166,6 +166,7 @@ class Socket @JvmOverloads constructor(
   override fun pushMessage(channel: Channel, push: Push) {
     val ref = makeRef()
     startTimeoutTimer(channel, ref, push.timeout ?: DEFAULT_TIMEOUT)
+    push(Message(channel.topic, push.event, push.payload, ref))
   }
 
   private val phoenixWebSocketListener = object: WebSocketListener() {
