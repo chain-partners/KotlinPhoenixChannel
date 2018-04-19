@@ -7,6 +7,15 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
 
   private var state = ChannelState.CLOSED
 
+  private fun pushMessage(push: Push, callback: MessageCallback?) {
+    pushDelegate.pushMessage(this, push)
+    callback?.let {
+      synchronized(bindings) {
+        bindings.add(Binding(push.event, callback))
+      }
+    }
+  }
+
   fun triggerChannelException(throwable: Throwable) {
 
   }
@@ -19,14 +28,13 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
    * @throws IOException           Thrown if the join could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
-  fun join(): Push {
+  fun join(callback: MessageCallback) {
     if (state == ChannelState.JOINED || state == ChannelState.JOINING) {
       throw IllegalStateException(
           "Tried to join multiple times. 'join' can only be invoked once per channel")
     }
     this.state = ChannelState.JOINING
-    pushDelegate.pushMessage(this, Push(PhoenixEvent.JOIN.phxEvent, payload, DEFAULT_TIMEOUT))
-    return this.joinPush
+    pushMessage(Push(topic, PhoenixEvent.JOIN.phxEvent, payload, DEFAULT_TIMEOUT))
   }
 
   /**
@@ -64,17 +72,17 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
     return this.state === ChannelState.JOINED && this.pushDelegate.canPushMessage()
   }
 
-  fun isMember(topic: String): Boolean {
-    return this.topic == topic
-  }
-
-
-
   @Throws(IOException::class)
-  fun leave(): Push {
-    return this.push(PhoenixEvent.LEAVE.getPhxEvent()).receive("ok", object : IMessageCallback() {
-      fun onMessage(envelope: Envelope) {
-        this@Channel.trigger(PhoenixEvent.CLOSE.getPhxEvent(), null)
+  fun leave(callback: MessageCallback) {
+    pushMessage(Push(topic, PhoenixEvent.LEAVE.phxEvent), object : MessageCallback {
+      override fun onMessage(status: String, message: Message?) {
+        if (message?.event == PhoenixEvent.CLOSE.phxEvent) {
+          callback.onMessage(status, message)
+        }
+      }
+
+      override fun onFailure(throwable: Throwable?, message: Message?) {
+        callback.onFailure(throwable, message)
       }
     })
   }
@@ -89,7 +97,7 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
     synchronized(bindings) {
       val bindingIter = bindings.iterator()
       while (bindingIter.hasNext()) {
-        if (bindingIter.next().getEvent().equals(event)) {
+        if (bindingIter.next().event == event) {
           bindingIter.remove()
           break
         }
@@ -103,32 +111,15 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
    * @param callback The callback to be invoked with the event's message
    * @return The instance's self
    */
-  fun on(event: String, callback: IMessageCallback): Channel {
+  fun on(event: String, callback: MessageCallback): Channel {
     synchronized(bindings) {
       this.bindings.add(Binding(event, callback))
     }
     return this
   }
 
-  private fun onClose(callback: IMessageCallback) {
-    this.on(PhoenixEvent.CLOSE.getPhxEvent(), callback)
-  }
-
-  /**
-   * Register an error callback for the channel
-   *
-   * @param callback Callback to be invoked on error
-   */
-  private fun onError(callback: IErrorCallback) {
-    this.on(PhoenixEvent.ERROR.getPhxEvent(), object : IMessageCallback() {
-      fun onMessage(envelope: Envelope?) {
-        var reason: String? = null
-        if (envelope != null) {
-          reason = envelope!!.getReason()
-        }
-        callback.onError(IOException(reason))
-      }
-    })
+  fun on(event: PhoenixEvent, callback: MessageCallback): Channel {
+    return on(event.phxEvent, callback)
   }
 
   /**
@@ -137,28 +128,16 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
    * @param event   The event name
    * @param payload The message payload
    * @param timeout The number of milliseconds to wait before triggering a timeout
-   * @return The Push instance used to send the message
    * @throws IOException           Thrown if the payload cannot be pushed
    * @throws IllegalStateException Thrown if the channel has not yet been joined
    */
-  @Throws(IOException::class, IllegalStateException::class)
-  private fun push(event: String, payload: JsonNode?, timeout: Long): Push {
+  @Throws(IOException::class)
+  fun push(event: String, payload: JsonNode? = null, timeout: Long = DEFAULT_TIMEOUT, callback: MessageCallback? = null) {
     if (state != ChannelState.JOINED) {
       throw IllegalStateException("Unable to push event before channel has been joined")
     }
-    val pushEvent = Push(event, payload, timeout)
-    if (this.canPush()) {
-      pushDelegate.pushMessage(this, pushEvent)
-    } else {
-      this.pushBuffer.add(pushEvent)
-    }
-    return pushEvent
-  }
-
-  @Throws(IOException::class)
-  @JvmOverloads
-  fun push(event: String, payload: JsonNode? = null, success: ((Message) -> Unit)? = null, failure: ((t: Throwable?) -> Unit)? = null): Push {
-    return push(event, payload, DEFAULT_TIMEOUT)
+    val pushEvent = Push(topic, event, payload, timeout)
+    pushMessage(pushEvent, callback)
   }
 
   override fun toString(): String {
@@ -169,15 +148,8 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
         '}'
   }
 
-  @Throws(IOException::class)
-  private fun sendJoin(payload: JsonNode?) {
-
-  }
-
   companion object {
 
-    private val DEFAULT_TIMEOUT: Long = 5000
-
-    private val log = LoggerFactory.getLogger(Channel::class.java)
+    val DEFAULT_TIMEOUT: Long = 5000
   }
 }
