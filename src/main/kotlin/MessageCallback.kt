@@ -1,6 +1,6 @@
 interface MessageCallback {
 
-  fun onMessage(status: String, message: Message?)
+  fun onMessage(status: String, phoenixResponse: PhoenixResponse?)
 
-  fun onFailure(throwable: Throwable?, message: Message?)
+  fun onFailure(throwable: Throwable?, phoenixResponse: PhoenixResponse?)
 }

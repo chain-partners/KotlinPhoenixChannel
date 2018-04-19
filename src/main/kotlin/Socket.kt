@@ -1,4 +1,3 @@
-import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -20,7 +19,7 @@ class Socket @JvmOverloads constructor(
     private val endpointUri: String,
     private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL,
     private val httpClient: OkHttpClient = OkHttpClient(),
-    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()): PushDelegate {
+    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()): PhoenixRequestSender {
 
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
@@ -67,13 +66,8 @@ class Socket @JvmOverloads constructor(
     listeners.remove(phoenixSocketListener)
   }
 
-  private fun push(message: Message): Socket {
-    val node = objectMapper.createObjectNode()
-    node.put("topic", message.topic)
-        .put("event", message.event)
-        .put("ref", message.ref)
-        .set("payload", message.payload ?: objectMapper.createObjectNode())
-    send(objectMapper.writeValueAsString(node))
+  private fun push(request: PhoenixRequest): Socket {
+    send(objectMapper.writeValueAsString(request))
     return this@Socket
   }
 
@@ -118,7 +112,7 @@ class Socket @JvmOverloads constructor(
     heartbeatTimerTask = timerTask {
       if (isConnected()) {
         try {
-          push(Message("phoenix", "heartbeat",
+          push(PhoenixRequest("phoenix", "heartbeat",
               ObjectNode(JsonNodeFactory.instance), makeRef()))
         } catch (e: Exception) {
           e.printStackTrace()
@@ -133,12 +127,13 @@ class Socket @JvmOverloads constructor(
     heartbeatTimerTask = null
   }
 
-  private fun startTimeoutTimer(channel: Channel, ref: String, push: Push) {
+  private fun startTimeoutTimer(channel: Channel, request: PhoenixRequest, timeout: Long) {
+    val ref = request.ref!!
     val timeoutTimerTask = timerTask {
-      channel.retrieveMessage(push.event, throwable = TimeoutException("Push Timeout"))
+      channel.retrieveFailure(TimeoutException("Timeout from request " + request))
     }
     timeoutTimerTasks[ref] = timeoutTimerTask
-    timeoutTimer.schedule(timeoutTimerTask, push.timeout)
+    timeoutTimer.schedule(timeoutTimerTask, timeout)
   }
 
   private fun cancelTimeoutTimer(ref: String) {
@@ -164,16 +159,21 @@ class Socket @JvmOverloads constructor(
     reconnectTimerTask = null
   }
 
-  private fun triggerChannelError() {
-//      channels.forEach()
+  private fun triggerChannelError(throwable: Throwable?) {
+    channels.values.forEach { it.retrieveFailure(throwable) }
   }
 
+  /**
+   * Implements [PhoenixRequestSender].
+   */
   override fun canPushMessage(): Boolean = isConnected()
 
-  override fun pushMessage(channel: Channel, push: Push) {
+  override fun pushMessage(request: PhoenixRequest, timeout: Long?, callback: MessageCallback?): String {
     val ref = makeRef()
-    startTimeoutTimer(channel, ref, push)
-    push(Message(channel.topic, push.event, push.payload, ref))
+    val requestWithRef = request.apply { this.ref = ref }
+    startTimeoutTimer(channel(request.topic), requestWithRef, timeout ?: DEFAULT_TIMEOUT)
+    push(request)
+    return ref
   }
 
   private val phoenixWebSocketListener = object: WebSocketListener() {
@@ -186,7 +186,7 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
-      val message = this@Socket.objectMapper.readValue(text, Message::class.java)
+      val message = this@Socket.objectMapper.readValue(text, PhoenixResponse::class.java)
       this@Socket.listeners.forEach { it.onMessage(text) }
       message.ref?.let { cancelTimeoutTimer(it) }
       this@Socket.channels[message.topic]?.retrieveMessage(message)
@@ -208,10 +208,8 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
-      triggerChannelError()
-      t?.let {
-        this@Socket.listeners.forEach { it.onFailure(t, response) }
-      }
+      triggerChannelError(t)
+      this@Socket.listeners.forEach { it.onFailure(t, response) }
       try {
         this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
       } finally {
