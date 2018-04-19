@@ -1,3 +1,5 @@
+package org.phoenixframework
+
 import com.fasterxml.jackson.databind.JsonNode
 
 data class PhoenixRequest(

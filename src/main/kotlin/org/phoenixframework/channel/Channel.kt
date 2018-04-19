@@ -1,36 +1,44 @@
+package org.phoenixframework.channel
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.phoenixframework.MessageCallback
+import org.phoenixframework.PhoenixEvent
+import org.phoenixframework.PhoenixRequest
+import org.phoenixframework.PhoenixResponse
+import org.phoenixframework.PhoenixRequestSender
 import java.io.IOException
 import java.util.ArrayList
 
 class Channel
 internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: String, private val objectMapper: ObjectMapper) {
-  private val bindings = ArrayList<Binding>()
+  private val bindings = ArrayList<EventBinding>()
 
   private var state = ChannelState.CLOSED
 
   private fun pushMessage(event: String, payload: JsonNode? = null, timeout: Long? = null, callback: MessageCallback? = null) {
-    val request = PhoenixRequest(topic, event, payload)
+    val ref = pushDelegate.makeRef()
+    val request = PhoenixRequest(topic, event, payload, ref)
     pushDelegate.pushMessage(request, timeout, callback)
     callback?.let {
       synchronized(bindings) {
-        bindings.add(Binding(event, callback))
+        bindings.add(EventBinding(event, callback))
       }
     }
   }
 
   /**
-   * Initiates a channel join event
+   * Initiates a org.phoenixframework.channel join event
    *
-   * @return This PhoenixRequest instance
-   * @throws IllegalStateException Thrown if the channel has already been joined
+   * @return This org.phoenixframework.PhoenixRequest instance
+   * @throws IllegalStateException Thrown if the org.phoenixframework.channel has already been joined
    * @throws IOException           Thrown if the join could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
   fun join(payload: String?, callback: MessageCallback) {
     if (state == ChannelState.JOINED || state == ChannelState.JOINING) {
       throw IllegalStateException(
-          "Tried to join multiple times. 'join' can only be invoked once per channel")
+          "Tried to join multiple times. 'join' can only be invoked once per org.phoenixframework.channel")
     }
     val joinPayload = objectMapper.readTree(payload)
     this.state = ChannelState.JOINING
@@ -55,7 +63,7 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
       PhoenixEvent.ERROR.phxEvent -> {
         retrieveFailure(response = phoenixResponse)
       }
-      // Includes PhoenixEvent.REPLY
+      // Includes org.phoenixframework.PhoenixEvent.REPLY
       else -> {
         bindings.filter { it.event == phoenixResponse.event }
             .forEach { it.callback?.onMessage("ok", phoenixResponse) }
@@ -69,11 +77,11 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
       bindings.filter { it.event == event }
           .forEach { it.callback?.onFailure(throwable, response) }
     }
-    // TODO(changhee): Rejoin channel with timer.
+    // TODO(changhee): Rejoin org.phoenixframework.channel with timer.
   }
 
   /**
-   * @return true if the socket is open and the channel has joined
+   * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
   private fun canPush(): Boolean {
     return this.state === ChannelState.JOINED && this.pushDelegate.canPushMessage()
@@ -120,7 +128,7 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
    */
   fun on(event: String, callback: MessageCallback): Channel {
     synchronized(bindings) {
-      this.bindings.add(Binding(event, callback))
+      this.bindings.add(EventBinding(event, callback))
     }
     return this
   }
@@ -128,24 +136,24 @@ internal constructor(private val pushDelegate: PhoenixRequestSender, val topic: 
   fun on(event: PhoenixEvent, callback: MessageCallback): Channel = on(event.phxEvent, callback)
 
   /**
-   * Pushes a payload to be sent to the channel
+   * Pushes a payload to be sent to the org.phoenixframework.channel
    *
    * @param event   The event name
    * @param payload The message payload
    * @param timeout The number of milliseconds to wait before triggering a timeout
    * @throws IOException           Thrown if the payload cannot be pushed
-   * @throws IllegalStateException Thrown if the channel has not yet been joined
+   * @throws IllegalStateException Thrown if the org.phoenixframework.channel has not yet been joined
    */
   @Throws(IOException::class)
   fun push(event: String, payload: JsonNode? = null, timeout: Long? = null, callback: MessageCallback? = null) {
     if (state != ChannelState.JOINED) {
-      throw IllegalStateException("Unable to push event before channel has been joined")
+      throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
     pushMessage(event, payload, timeout, callback)
   }
 
   override fun toString(): String {
-    return "Channel{" +
+    return "org.phoenixframework.channel.Channel{" +
         "topic='" + topic + '\'' +
         ", bindings(" + bindings.size + ")=" + bindings +
         '}'

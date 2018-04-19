@@ -1,3 +1,5 @@
+package org.phoenixframework.socket
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -8,6 +10,11 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import org.phoenixframework.PhoenixRequest
+import org.phoenixframework.PhoenixRequestSender
+import org.phoenixframework.PhoenixResponse
+import org.phoenixframework.channel.Channel
+import org.phoenixframework.MessageCallback
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
@@ -27,13 +34,13 @@ class Socket @JvmOverloads constructor(
 
   private var listeners = mutableSetOf<PhoenixSocketListener>()
 
-  private var timer: Timer = Timer("Socket Timer For $endpointUri")
+  private var timer: Timer = Timer("org.phoenixframework.socket.Socket Timer For $endpointUri")
   private var timeoutTimer: Timer = Timer("Timeout Timer For $endpointUri")
   private var heartbeatTimerTask: TimerTask? = null
   var reconnectOnFailure: Boolean = false
   private var reconnectTimerTask: TimerTask? = null
 
-  private val timeoutTimerTasks: ConcurrentHashMap<String, TimerTask> = ConcurrentHashMap()
+  private val timeoutTimerTasks = ConcurrentHashMap<String, TimerTask>()
 
   // buffer가 비어있으면 작업을 중지하고 blocking 상태가 됨.
   private var messageBuffer: LinkedBlockingQueue<String> = LinkedBlockingQueue()
@@ -92,16 +99,6 @@ class Socket @JvmOverloads constructor(
     messageBuffer.put(json)
     while (isConnected() && messageBuffer.isNotEmpty()) {
       webSocket?.send(messageBuffer.take())
-    }
-  }
-
-  private fun makeRef(): String {
-    synchronized(refNumber) {
-      val ref = refNumber++
-      if (refNumber == Int.MAX_VALUE) {
-        refNumber = 0
-      }
-      return ref.toString()
     }
   }
 
@@ -168,12 +165,19 @@ class Socket @JvmOverloads constructor(
    */
   override fun canPushMessage(): Boolean = isConnected()
 
-  override fun pushMessage(request: PhoenixRequest, timeout: Long?, callback: MessageCallback?): String {
-    val ref = makeRef()
-    val requestWithRef = request.apply { this.ref = ref }
-    startTimeoutTimer(channel(request.topic), requestWithRef, timeout ?: DEFAULT_TIMEOUT)
+  override fun pushMessage(request: PhoenixRequest, timeout: Long?, callback: MessageCallback?) {
+    startTimeoutTimer(channel(request.topic), request, timeout ?: DEFAULT_TIMEOUT)
     push(request)
-    return ref
+  }
+
+  override fun makeRef(): String {
+    synchronized(refNumber) {
+      val ref = refNumber++
+      if (refNumber == Int.MAX_VALUE) {
+        refNumber = 0
+      }
+      return ref.toString()
+    }
   }
 
   private val phoenixWebSocketListener = object: WebSocketListener() {

@@ -1,3 +1,5 @@
+package org.phoenixframework
+
 enum class PhoenixEvent(val phxEvent: String) {
   CLOSE("phx_close"),
   ERROR("phx_error"),

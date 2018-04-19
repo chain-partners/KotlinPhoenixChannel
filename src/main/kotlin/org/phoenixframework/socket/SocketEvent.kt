@@ -1,3 +1,5 @@
+package org.phoenixframework.socket
+
 /**
  * Each events corresponds to callbacks of [okhttp3.WebSocketListener].
  */

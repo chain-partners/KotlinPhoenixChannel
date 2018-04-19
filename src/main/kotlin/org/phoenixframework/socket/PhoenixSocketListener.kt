@@ -1,3 +1,5 @@
+package org.phoenixframework.socket
+
 import okhttp3.Response
 
 /**
