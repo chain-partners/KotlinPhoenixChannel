@@ -13,11 +13,12 @@ import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeoutException
 import kotlin.concurrent.timerTask
 
 class Socket @JvmOverloads constructor(
     private val endpointUri: String,
-    private val heartbeatInterval: Int = DEFAULT_HEARTBEAT_INTERVAL,
+    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL,
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()): PushDelegate {
 
@@ -32,12 +33,15 @@ class Socket @JvmOverloads constructor(
   var reconnectOnFailure: Boolean = false
   private var reconnectTimerTask: TimerTask? = null
 
+  private val timeoutTimerTasks: ConcurrentHashMap<String, TimerTask> = ConcurrentHashMap()
+
   // buffer가 비어있으면 작업을 중지하고 blocking 상태가 됨.
   private var messageBuffer: LinkedBlockingQueue<String> = LinkedBlockingQueue()
 
   companion object {
-    private const val DEFAULT_HEARTBEAT_INTERVAL = 7000
-    private const val DEFAULT_RECONNECT_INTERVAL = 5000
+    private const val DEFAULT_HEARTBEAT_INTERVAL: Long = 7000
+    private const val DEFAULT_RECONNECT_INTERVAL: Long = 5000
+    private const val DEFAULT_TIMEOUT: Long = 5000
   }
 
   fun connect() {
@@ -117,12 +121,24 @@ class Socket @JvmOverloads constructor(
         }
       }
     }
-    timer.schedule(heartbeatTimerTask, heartbeatInterval.toLong())
+    timer.schedule(heartbeatTimerTask, heartbeatInterval)
   }
 
   private fun cancelHeartbeatTimer() {
     heartbeatTimerTask?.cancel()
     heartbeatTimerTask = null
+  }
+
+  private fun startTimeoutTimer(channel: Channel, ref: String, timeout: Long) {
+    val timeoutTimerTask = timerTask {
+      channel.triggerChannelException(TimeoutException("Push Timeout"))
+    }
+    timeoutTimerTasks[ref] = timeoutTimerTask
+    timer.schedule(timeoutTimerTask, timeout)
+  }
+
+  private fun cancelTimeoutTimer(ref: String) {
+    timeoutTimerTasks[ref]?.cancel()
   }
 
   private fun startReconnectTimer() {
@@ -135,7 +151,7 @@ class Socket @JvmOverloads constructor(
         e.printStackTrace()
       }
     }
-    timer.schedule(reconnectTimerTask, DEFAULT_RECONNECT_INTERVAL.toLong())
+    timer.schedule(reconnectTimerTask, DEFAULT_RECONNECT_INTERVAL)
   }
 
   private fun cancelReconnectTimer() {
@@ -145,6 +161,11 @@ class Socket @JvmOverloads constructor(
 
   private fun triggerChannelError() {
 //      channels.forEach()
+  }
+
+  override fun pushMessage(channel: Channel, push: Push) {
+    val ref = makeRef()
+    startTimeoutTimer(channel, ref, push.timeout ?: DEFAULT_TIMEOUT)
   }
 
   private val phoenixWebSocketListener = object: WebSocketListener() {
@@ -159,7 +180,8 @@ class Socket @JvmOverloads constructor(
     override fun onMessage(webSocket: WebSocket?, text: String?) {
       val message = this@Socket.objectMapper.readValue(text, Message::class.java)
       this@Socket.listeners.forEach { it.onMessage(text) }
-      this@Socket.channels[message.topic]?.retrieveMessage(message)
+      message.ref?.let { cancelTimeoutTimer(it) }
+//      this@Socket.channels[message.topic]?.retrieveMessage(message)
     }
 
     override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {
@@ -191,9 +213,5 @@ class Socket @JvmOverloads constructor(
         }
       }
     }
-  }
-
-  override fun pushMessage(channel: Channel, push: Push) {
-
   }
 }
