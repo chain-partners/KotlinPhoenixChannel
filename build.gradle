@@ -12,6 +12,7 @@ buildscript {
 version '1.0-SNAPSHOT'
 
 apply plugin: 'kotlin'
+apply plugin: 'kotlin-kapt'
 
 repositories {
     mavenCentral()
@@ -21,6 +22,8 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.9.0'
+    // Okhttp3
+    implementation 'com.squareup.okhttp3:okhttp:3.8.0'
 }
 
 compileKotlin {
