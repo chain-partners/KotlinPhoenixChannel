@@ -6,10 +6,8 @@ data class Message(
     val topic: String,
     val event: String,
     val payload: JsonNode?,
-    private val _ref: String?) {
+    val ref: String?) {
 
-  val ref: String? = _ref ?: payload?.get("ref")?.textValue()
-
-  fun getResponseStatus(): String? = payload?.get("status")?.textValue()
-  fun getReason(): String? = payload?.get("reason")?.textValue()
+  val repsonseStatus: String? = payload?.get("status")?.textValue()
+  val reason = payload?.get("reason")?.textValue()
 }
