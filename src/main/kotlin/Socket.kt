@@ -189,7 +189,7 @@ class Socket @JvmOverloads constructor(
       val message = this@Socket.objectMapper.readValue(text, Message::class.java)
       this@Socket.listeners.forEach { it.onMessage(text) }
       message.ref?.let { cancelTimeoutTimer(it) }
-//      this@Socket.channels[message.topic]?.retrieveMessage(message)
+      this@Socket.channels[message.topic]?.retrieveMessage(message)
     }
 
     override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {

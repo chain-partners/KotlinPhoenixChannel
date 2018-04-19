@@ -42,8 +42,8 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
    * @param triggerEvent The event name
    * @param envelope     The message's envelope relating to the event or null if not relevant.
    */
-  internal fun retrieveMessage(event: String, message: Message? = null, throwable: Throwable? = null) {
-    when (event) {
+  internal fun retrieveMessage(message: Message, throwable: Throwable? = null) {
+    when (message.event) {
       PhoenixEvent.JOIN.phxEvent -> {
         state = ChannelState.JOINED
       }
@@ -53,11 +53,15 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
       PhoenixEvent.ERROR.phxEvent -> {
         state = ChannelState.ERRORED
         // TODO(changhee): Rejoin channel with timer.
-        bindings.filter { it.event == event }
+        bindings.filter { it.event == message.event }
             .forEach { it.callback?.onFailure(throwable, message) }
       }
       PhoenixEvent.REPLY.phxEvent -> {
-        bindings.filter { it.event == event }
+        bindings.filter { it.event == message.event }
+            .forEach { it.callback?.onMessage("ok", message) }
+      }
+      else -> {
+        bindings.filter { it.event == message.event }
             .forEach { it.callback?.onMessage("ok", message) }
       }
     }
