@@ -67,7 +67,7 @@ class Socket @JvmOverloads constructor(
     listeners.remove(phoenixSocketListener)
   }
 
-  fun push(message: Message): Socket {
+  private fun push(message: Message): Socket {
     val node = objectMapper.createObjectNode()
     node.put("topic", message.topic)
         .put("event", message.event)
@@ -80,7 +80,7 @@ class Socket @JvmOverloads constructor(
   fun channel(topic: String): Channel {
     var channel = channels[topic]
     if (channel == null) {
-      channel = Channel(this, topic)
+      channel = Channel(this, topic, objectMapper)
       channels[topic] = channel
     }
     return channel
@@ -133,13 +133,12 @@ class Socket @JvmOverloads constructor(
     heartbeatTimerTask = null
   }
 
-  private fun startTimeoutTimer(channel: Channel, ref: String, timeout: Long) {
+  private fun startTimeoutTimer(channel: Channel, ref: String, push: Push) {
     val timeoutTimerTask = timerTask {
-      channel.retrieveMessage()
-      channel.triggerChannelException(TimeoutException("Push Timeout"))
+      channel.retrieveMessage(push.event, throwable = TimeoutException("Push Timeout"))
     }
     timeoutTimerTasks[ref] = timeoutTimerTask
-    timeoutTimer.schedule(timeoutTimerTask, timeout)
+    timeoutTimer.schedule(timeoutTimerTask, push.timeout)
   }
 
   private fun cancelTimeoutTimer(ref: String) {
@@ -169,9 +168,11 @@ class Socket @JvmOverloads constructor(
 //      channels.forEach()
   }
 
+  override fun canPushMessage(): Boolean = isConnected()
+
   override fun pushMessage(channel: Channel, push: Push) {
     val ref = makeRef()
-    startTimeoutTimer(channel, ref, push.timeout ?: DEFAULT_TIMEOUT)
+    startTimeoutTimer(channel, ref, push)
     push(Message(channel.topic, push.event, push.payload, ref))
   }
 

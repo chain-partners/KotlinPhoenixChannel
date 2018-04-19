@@ -1,8 +1,9 @@
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.IOException
 import java.util.ArrayList
 
-class Channel(private val pushDelegate: PushDelegate, val topic: String, private val payload: JsonNode) {
+class Channel(private val pushDelegate: PushDelegate, val topic: String, private val objectMapper: ObjectMapper) {
   private val bindings = ArrayList<Binding>()
 
   private var state = ChannelState.CLOSED
@@ -16,10 +17,6 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
     }
   }
 
-  fun triggerChannelException(throwable: Throwable) {
-
-  }
-
   /**
    * Initiates a channel join event
    *
@@ -28,13 +25,14 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
    * @throws IOException           Thrown if the join could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
-  fun join(callback: MessageCallback) {
+  fun join(payload: String?, callback: MessageCallback) {
     if (state == ChannelState.JOINED || state == ChannelState.JOINING) {
       throw IllegalStateException(
           "Tried to join multiple times. 'join' can only be invoked once per channel")
     }
+    val joinPayload = objectMapper.readTree(payload)
     this.state = ChannelState.JOINING
-    pushMessage(Push(topic, PhoenixEvent.JOIN.phxEvent, payload, DEFAULT_TIMEOUT))
+    pushMessage(Push(topic, PhoenixEvent.JOIN.phxEvent, joinPayload, DEFAULT_TIMEOUT), callback)
   }
 
   /**
@@ -44,7 +42,7 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
    * @param triggerEvent The event name
    * @param envelope     The message's envelope relating to the event or null if not relevant.
    */
-  fun retrieveMessage(event: String, message: Message?, throwable: Throwable?) {
+  internal fun retrieveMessage(event: String, message: Message? = null, throwable: Throwable? = null) {
     when (event) {
       PhoenixEvent.JOIN.phxEvent -> {
         state = ChannelState.JOINED
@@ -118,9 +116,7 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
     return this
   }
 
-  fun on(event: PhoenixEvent, callback: MessageCallback): Channel {
-    return on(event.phxEvent, callback)
-  }
+  fun on(event: PhoenixEvent, callback: MessageCallback): Channel = on(event.phxEvent, callback)
 
   /**
    * Pushes a payload to be sent to the channel
@@ -143,7 +139,6 @@ class Channel(private val pushDelegate: PushDelegate, val topic: String, private
   override fun toString(): String {
     return "Channel{" +
         "topic='" + topic + '\'' +
-        ", message=" + payload +
         ", bindings(" + bindings.size + ")=" + bindings +
         '}'
   }
