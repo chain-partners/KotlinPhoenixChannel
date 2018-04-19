@@ -77,9 +77,12 @@ class Socket @JvmOverloads constructor(
     return this@Socket
   }
 
-  fun channel(topic: String, payload: JsonNode): Channel {
-    val channel = Channel(this, topic, payload)
-    channels[topic] = channel
+  fun channel(topic: String): Channel {
+    var channel = channels[topic]
+    if (channel == null) {
+      channel = Channel(this, topic)
+      channels[topic] = channel
+    }
     return channel
   }
 
