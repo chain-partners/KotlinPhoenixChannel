@@ -27,11 +27,6 @@ class Socket @JvmOverloads constructor(
 
   private var listeners = mutableSetOf<PhoenixSocketListener>()
 
-  var openCallback: (() -> Unit)? = null
-  var closedCallback: (() -> Unit)? = null
-  var messageCallback: ((Message) -> Unit)? = null
-  var errorCallback: ((Throwable) -> Unit)? = null
-
   private var timer: Timer = Timer("Reconnect Timer For $endpointUri")
   private var heartbeatTimerTask: TimerTask? = null
   var reconnectOnFailure: Boolean = false
@@ -57,6 +52,14 @@ class Socket @JvmOverloads constructor(
     webSocket?.close(1001, "Disconnect By Client")
     cancelReconnectTimer()
     cancelHeartbeatTimer()
+  }
+
+  fun registerPhoenixSocketListener(phoenixSocketListener: PhoenixSocketListener) {
+    listeners.add(phoenixSocketListener)
+  }
+
+  fun unregisterPhoenixSocketListener(phoenixSocketListener: PhoenixSocketListener) {
+    listeners.remove(phoenixSocketListener)
   }
 
   fun push(message: Message): Socket {
@@ -150,13 +153,12 @@ class Socket @JvmOverloads constructor(
       this@Socket.webSocket = webSocket
       cancelReconnectTimer()
       startHeartbeatTimer()
-
-      this@Socket.openCallback?.invoke()
+      this@Socket.listeners.forEach { it.onOpen(response) }
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
       val message = this@Socket.objectMapper.readValue(text, Message::class.java)
-      this@Socket.messageCallback?.invoke(message)
+      this@Socket.listeners.forEach { it.onMessage(text) }
       this@Socket.channels[message.topic]
     }
 
@@ -165,19 +167,20 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onClosing(webSocket: WebSocket?, code: Int, reason: String?) {
+      this@Socket.listeners.forEach { it.onClosing(code, reason) }
     }
 
     override fun onClosed(webSocket: WebSocket?, code: Int, reason: String?) {
       this@Socket.apply {
         this@Socket.webSocket = null
-        this@Socket.closedCallback?.invoke()
+        this@Socket.listeners.forEach{ it.onClosed(code, reason) }
       }
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
       triggerChannelError()
       t?.let {
-        this@Socket.errorCallback?.invoke(it)
+        this@Socket.listeners.forEach { it.onFailure(t, response) }
       }
       try {
         this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
