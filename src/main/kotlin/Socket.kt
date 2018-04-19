@@ -28,7 +28,8 @@ class Socket @JvmOverloads constructor(
 
   private var listeners = mutableSetOf<PhoenixSocketListener>()
 
-  private var timer: Timer = Timer("Reconnect Timer For $endpointUri")
+  private var timer: Timer = Timer("Socket Timer For $endpointUri")
+  private var timeoutTimer: Timer = Timer("Timeout Timer For $endpointUri")
   private var heartbeatTimerTask: TimerTask? = null
   var reconnectOnFailure: Boolean = false
   private var reconnectTimerTask: TimerTask? = null
@@ -135,11 +136,12 @@ class Socket @JvmOverloads constructor(
       channel.triggerChannelException(TimeoutException("Push Timeout"))
     }
     timeoutTimerTasks[ref] = timeoutTimerTask
-    timer.schedule(timeoutTimerTask, timeout)
+    timeoutTimer.schedule(timeoutTimerTask, timeout)
   }
 
   private fun cancelTimeoutTimer(ref: String) {
     timeoutTimerTasks[ref]?.cancel()
+    timeoutTimerTasks.remove(ref)
   }
 
   private fun startReconnectTimer() {
