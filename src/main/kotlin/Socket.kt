@@ -19,7 +19,7 @@ class Socket @JvmOverloads constructor(
     private val endpointUri: String,
     private val heartbeatInterval: Int = DEFAULT_HEARTBEAT_INTERVAL,
     private val httpClient: OkHttpClient = OkHttpClient(),
-    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()) {
+    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()): PushDelegate {
 
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
@@ -73,7 +73,7 @@ class Socket @JvmOverloads constructor(
   }
 
   fun channel(topic: String, payload: JsonNode): Channel {
-    val channel = Channel(topic, payload, this)
+    val channel = Channel(this, topic, payload)
     channels[topic] = channel
     return channel
   }
@@ -159,7 +159,7 @@ class Socket @JvmOverloads constructor(
     override fun onMessage(webSocket: WebSocket?, text: String?) {
       val message = this@Socket.objectMapper.readValue(text, Message::class.java)
       this@Socket.listeners.forEach { it.onMessage(text) }
-      this@Socket.channels[message.topic]
+      this@Socket.channels[message.topic]?.retrieveMessage(message)
     }
 
     override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {
@@ -191,5 +191,9 @@ class Socket @JvmOverloads constructor(
         }
       }
     }
+  }
+
+  override fun pushMessage(channel: Channel, push: Push) {
+
   }
 }
