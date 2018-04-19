@@ -131,6 +131,7 @@ class Socket @JvmOverloads constructor(
 
   private fun startTimeoutTimer(channel: Channel, ref: String, timeout: Long) {
     val timeoutTimerTask = timerTask {
+      channel.retrieveMessage()
       channel.triggerChannelException(TimeoutException("Push Timeout"))
     }
     timeoutTimerTasks[ref] = timeoutTimerTask
