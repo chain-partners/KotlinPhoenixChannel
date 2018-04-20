@@ -17,7 +17,7 @@ import kotlin.concurrent.timerTask
 
 class Channel
 internal constructor(private val requestSender: PhoenixRequestSender,
-    private val topic: String, private val objectMapper: ObjectMapper) {
+    val topic: String, private val objectMapper: ObjectMapper) {
 
   companion object {
     private const val DEFAULT_REJOIN_INTERVAL: Long = 7000

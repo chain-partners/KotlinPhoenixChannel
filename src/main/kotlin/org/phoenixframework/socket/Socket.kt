@@ -230,4 +230,9 @@ class Socket @JvmOverloads constructor(
       }
     }
   }
+
+  /**
+   * Implements test helper methods. Only tests can use below methods.
+   */
+  internal fun getChannels(): ConcurrentHashMap<String, Channel> = channels
 }
