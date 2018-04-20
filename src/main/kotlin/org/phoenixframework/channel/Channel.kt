@@ -118,7 +118,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @param triggerEvent The event name
    * @param envelope     The response's envelope relating to the event or null if not relevant.
    */
-  internal fun retrieveMessage(response: PhoenixResponse) {
+  internal fun retrieveResponse(response: PhoenixResponse) {
     when (response.event) {
       PhoenixEvent.CLOSE.phxEvent -> {
         clearBindings()

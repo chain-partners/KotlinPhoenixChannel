@@ -195,10 +195,10 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
-      val message = this@Socket.objectMapper.readValue(text, PhoenixResponse::class.java)
+      val phoenixResponse = this@Socket.objectMapper.readValue(text, PhoenixResponse::class.java)
       this@Socket.listeners.forEach { it.onMessage(text) }
-      message.ref?.let { cancelTimeoutTimer(it) }
-      this@Socket.channels[message.topic]?.retrieveMessage(message)
+      phoenixResponse.ref?.let { cancelTimeoutTimer(it) }
+      this@Socket.channels[phoenixResponse.topic]?.retrieveResponse(phoenixResponse)
     }
 
     override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {
