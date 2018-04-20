@@ -212,6 +212,7 @@ class Socket @JvmOverloads constructor(
 
     override fun onClosed(webSocket: WebSocket?, code: Int, reason: String?) {
       this@Socket.apply {
+        this@Socket.channels.clear()
         this@Socket.webSocket = null
         this@Socket.listeners.forEach { it.onClosed(code, reason) }
       }
