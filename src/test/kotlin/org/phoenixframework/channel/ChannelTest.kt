@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.verify
 import org.junit.Test
+import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixRequestSender
 import org.phoenixframework.TestBase
@@ -27,12 +28,13 @@ class ChannelTest: TestBase() {
   @Test
   fun joinTest() {
     every { requestSender.makeRef() } returns "ref_1"
+    every { requestSender.canPushRequest() } returns true
 
     phxChannel.join()
 
     verify {
       requestSender.pushRequest(
-          request = PhoenixRequest("topic", "phx_join", null, "ref_1"),
+          request = PhoenixRequest("topic", PhoenixEvent.JOIN.phxEvent, null, "ref_1"),
           timeout = null)
     }
   }

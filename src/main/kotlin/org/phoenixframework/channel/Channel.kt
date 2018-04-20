@@ -53,8 +53,11 @@ internal constructor(private val requestSender: PhoenixRequestSender,
         })
   }
 
-  @Throws(IOException::class)
+  @Throws(IllegalStateException::class, IOException::class)
   fun leave() {
+    if (!canPush()) {
+      throw IllegalStateException("Unable to leave org.phoenixframework.channel")
+    }
     pushMessage(PhoenixEvent.LEAVE.phxEvent)
   }
 
@@ -69,7 +72,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    */
   @Throws(IOException::class)
   fun pushRequest(event: String, payload: JsonNode? = null, timeout: Long? = null): PhoenixRequest {
-    if (canPush()) {
+    if (!canPush()) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
     return pushMessage(event, payload, timeout)
@@ -155,15 +158,17 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
   private fun canPush(): Boolean {
-    return this.state.get() === ChannelState.JOINED && this.requestSender.canPushRequest()
+    return this.state.get() == ChannelState.JOINED && this.requestSender.canPushRequest()
   }
 
   private fun pushMessage(event: String, payload: JsonNode? = null, timeout: Long? = null)
       : PhoenixRequest {
     val ref = requestSender.makeRef()
     val request = PhoenixRequest(topic, event, payload, ref)
-    requestSender.pushRequest(request, timeout)
-    refBindings[ref] = request
+    if (this.requestSender.canPushRequest()) {
+      requestSender.pushRequest(request, timeout)
+      refBindings[ref] = request
+    }
     return request
   }
 
