@@ -73,7 +73,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
           trigger(it, response)
         }
         eventBindings.filter { it.event == response.event }
-            .forEach { it.callback?.onMessage("ok", response) }
+            .forEach { it.callback?.onMessage(response) }
       }
     }
   }
@@ -90,7 +90,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
   private fun trigger(ref: String, response: PhoenixResponse) {
     val callback = refBindings[ref]
     when (response.responseStatus) {
-      "ok" -> callback?.onMessage("ok", response)
+      "ok" -> callback?.onMessage(response)
       else -> callback?.onFailure(response = response)
     }
     refBindings.remove(ref)
@@ -105,17 +105,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
 
   @Throws(IOException::class)
   fun leave(callback: MessageCallback) {
-    pushMessage(PhoenixEvent.LEAVE.phxEvent, callback = object : MessageCallback {
-      override fun onMessage(status: String, response: PhoenixResponse?) {
-        if (response?.event == PhoenixEvent.CLOSE.phxEvent) {
-          callback.onMessage(status, response)
-        }
-      }
-
-      override fun onFailure(throwable: Throwable?, response: PhoenixResponse?) {
-        callback.onFailure(throwable, response)
-      }
-    })
+    pushMessage(PhoenixEvent.LEAVE.phxEvent, callback = callback)
   }
 
   /**
