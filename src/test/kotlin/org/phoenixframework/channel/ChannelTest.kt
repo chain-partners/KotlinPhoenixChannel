@@ -31,7 +31,7 @@ class ChannelTest: TestBase() {
     phxChannel.join()
 
     verify {
-      requestSender.pushMessage(
+      requestSender.pushRequest(
           request = PhoenixRequest("topic", "phx_join", null, "ref_1"),
           timeout = null)
     }

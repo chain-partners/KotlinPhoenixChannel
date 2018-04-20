@@ -69,7 +69,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    */
   @Throws(IOException::class)
   fun pushRequest(event: String, payload: JsonNode? = null, timeout: Long? = null): PhoenixRequest {
-    if (state.get() != ChannelState.JOINED) {
+    if (canPush()) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
     return pushMessage(event, payload, timeout)
@@ -118,9 +118,11 @@ internal constructor(private val requestSender: PhoenixRequestSender,
   internal fun retrieveMessage(response: PhoenixResponse) {
     when (response.event) {
       PhoenixEvent.CLOSE.phxEvent -> {
+        clearBindings()
         state.set(ChannelState.CLOSED)
       }
       PhoenixEvent.ERROR.phxEvent -> {
+        clearBindings()
         retrieveFailure(response = response)
         startRejoinTimer()
       }
@@ -153,17 +155,15 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
   private fun canPush(): Boolean {
-    return this.state.get() === ChannelState.JOINED && this.requestSender.canPushMessage()
+    return this.state.get() === ChannelState.JOINED && this.requestSender.canPushRequest()
   }
 
   private fun pushMessage(event: String, payload: JsonNode? = null, timeout: Long? = null)
       : PhoenixRequest {
     val ref = requestSender.makeRef()
     val request = PhoenixRequest(topic, event, payload, ref)
-    if (canPush()) {
-      requestSender.pushMessage(request, timeout)
-      refBindings[ref] = request
-    }
+    requestSender.pushRequest(request, timeout)
+    refBindings[ref] = request
     return request
   }
 
@@ -180,6 +180,12 @@ internal constructor(private val requestSender: PhoenixRequestSender,
 
   private fun cancelRejoinTimer() {
     rejoinTimerTask?.cancel()
+    rejoinTimerTask = null
+  }
+
+  private fun clearBindings() {
+    eventBindings.clear()
+    refBindings.clear()
   }
 
   override fun toString(): String {

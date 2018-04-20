@@ -167,9 +167,9 @@ class Socket @JvmOverloads constructor(
   /**
    * Implements [PhoenixRequestSender].
    */
-  override fun canPushMessage(): Boolean = isConnected()
+  override fun canPushRequest(): Boolean = isConnected()
 
-  override fun pushMessage(request: PhoenixRequest, timeout: Long?) {
+  override fun pushRequest(request: PhoenixRequest, timeout: Long?) {
     startTimeoutTimer(channel(request.topic), request, timeout ?: DEFAULT_TIMEOUT)
     push(request)
   }
