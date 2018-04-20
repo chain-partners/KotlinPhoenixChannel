@@ -26,7 +26,8 @@ class Socket @JvmOverloads constructor(
     private val endpointUri: String,
     private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL,
     private val httpClient: OkHttpClient = OkHttpClient(),
-    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()): PhoenixRequestSender {
+    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule())
+  : PhoenixRequestSender {
 
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
@@ -97,6 +98,10 @@ class Socket @JvmOverloads constructor(
 
   private fun send(json: String) {
     messageBuffer.put(json)
+    flushSendBuffer()
+  }
+
+  private fun flushSendBuffer() {
     while (isConnected() && messageBuffer.isNotEmpty()) {
       webSocket?.send(messageBuffer.take())
     }
@@ -187,6 +192,7 @@ class Socket @JvmOverloads constructor(
       cancelReconnectTimer()
       startHeartbeatTimer()
       this@Socket.listeners.forEach { it.onOpen(response) }
+      flushSendBuffer()
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
