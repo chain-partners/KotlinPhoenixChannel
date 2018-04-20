@@ -33,7 +33,7 @@ class Socket @JvmOverloads constructor(
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
   private var refNumber = 1
 
-  private var listeners = mutableSetOf<PhoenixSocketListener>()
+  private var listeners = mutableSetOf<PhoenixSocketEventListener>()
 
   private var timer: Timer = Timer("org.phoenixframework.socket.Socket Timer For $endpointUri")
   private var timeoutTimer: Timer = Timer("Timeout Timer For $endpointUri")
@@ -66,12 +66,12 @@ class Socket @JvmOverloads constructor(
     cancelHeartbeatTimer()
   }
 
-  fun registerPhoenixSocketListener(phoenixSocketListener: PhoenixSocketListener) {
-    listeners.add(phoenixSocketListener)
+  fun registerPhoenixSocketListener(phoenixSocketEventListener: PhoenixSocketEventListener) {
+    listeners.add(phoenixSocketEventListener)
   }
 
-  fun unregisterPhoenixSocketListener(phoenixSocketListener: PhoenixSocketListener) {
-    listeners.remove(phoenixSocketListener)
+  fun unregisterPhoenixSocketListener(phoenixSocketEventListener: PhoenixSocketEventListener) {
+    listeners.remove(phoenixSocketEventListener)
   }
 
   private fun push(request: PhoenixRequest): Socket {
@@ -98,13 +98,13 @@ class Socket @JvmOverloads constructor(
 
   private fun send(json: String) {
     messageBuffer.put(json)
-    flushSendBuffer()
-  }
-
-  private fun flushSendBuffer() {
     while (isConnected() && messageBuffer.isNotEmpty()) {
       webSocket?.send(messageBuffer.take())
     }
+  }
+
+  private fun flushSendBuffer() {
+    messageBuffer.clear()
   }
 
   private fun isConnected(): Boolean = webSocket != null
@@ -192,6 +192,8 @@ class Socket @JvmOverloads constructor(
       cancelReconnectTimer()
       startHeartbeatTimer()
       this@Socket.listeners.forEach { it.onOpen(response) }
+
+      // 다시 join이 필요하다면 flush가 아닌 buffer clear가 필요.
       flushSendBuffer()
     }
 
@@ -213,7 +215,7 @@ class Socket @JvmOverloads constructor(
     override fun onClosed(webSocket: WebSocket?, code: Int, reason: String?) {
       this@Socket.apply {
         this@Socket.webSocket = null
-        this@Socket.listeners.forEach{ it.onClosed(code, reason) }
+        this@Socket.listeners.forEach { it.onClosed(code, reason) }
       }
     }
 

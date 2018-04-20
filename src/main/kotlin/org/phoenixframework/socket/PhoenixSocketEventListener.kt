@@ -5,7 +5,7 @@ import okhttp3.Response
 /**
  * Each callbacks corresponds to that of [okhttp3.WebSocketListener].
  */
-interface PhoenixSocketListener {
+interface PhoenixSocketEventListener {
 
   fun onOpen(response: Response?)
 
