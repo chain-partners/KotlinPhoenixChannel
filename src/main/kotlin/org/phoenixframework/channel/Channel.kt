@@ -7,18 +7,30 @@ import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixResponse
 import org.phoenixframework.PhoenixRequestSender
+import org.phoenixframework.PhoenixResponseCallback
 import java.io.IOException
 import java.util.ArrayList
+import java.util.Timer
+import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.timerTask
 
 class Channel
-internal constructor(private val requestSender: PhoenixRequestSender, val topic: String, private val objectMapper: ObjectMapper) {
+internal constructor(private val requestSender: PhoenixRequestSender,
+    private val topic: String, private val objectMapper: ObjectMapper) {
+
+  companion object {
+    private const val DEFAULT_REJOIN_INTERVAL: Long = 7000
+  }
 
   private val refBindings = ConcurrentHashMap<String, PhoenixRequest>()
   private val eventBindings = ArrayList<EventBinding>()
 
   private var state = AtomicReference<ChannelState>(ChannelState.CLOSED)
+
+  private val rejoinTimer = Timer("Rejoin Timer for $topic")
+  private var rejoinTimerTask: TimerTask? = null
 
   /**
    * Initiates a org.phoenixframework.channel join event
@@ -28,19 +40,25 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
    * @throws IOException           Thrown if the join could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
-  fun join(payload: String?, vararg statusBinding: StatusBinding): PhoenixRequest {
+  fun join(payload: String? = null) {
     if (state.get() == ChannelState.JOINED || state.get() == ChannelState.JOINING) {
       throw IllegalStateException(
           "Tried to join multiple times. 'join' can only be invoked once per org.phoenixframework.channel")
     }
     this.state.set(ChannelState.JOINING)
     val joinPayload = objectMapper.readTree(payload)
-    return pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
+    pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
+        .receive("ok", object : PhoenixResponseCallback {
+          override fun onResponse(response: PhoenixResponse) {
+            cancelRejoinTimer()
+            this@Channel.state.set(ChannelState.JOINED)
+          }
+        })
   }
 
   @Throws(IOException::class)
-  fun leave(callback: MessageCallback): PhoenixRequest {
-    return pushMessage(PhoenixEvent.LEAVE.phxEvent)
+  fun leave() {
+    pushMessage(PhoenixEvent.LEAVE.phxEvent)
   }
 
   /**
@@ -53,8 +71,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
    * @throws IllegalStateException Thrown if the org.phoenixframework.channel has not yet been joined
    */
   @Throws(IOException::class)
-  fun pushRequest(event: String, payload: JsonNode? = null, timeout: Long? = null, callback: MessageCallback? = null)
-      : PhoenixRequest {
+  fun pushRequest(event: String, payload: JsonNode? = null, timeout: Long? = null): PhoenixRequest {
     if (state.get() != ChannelState.JOINED) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
@@ -103,14 +120,12 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
    */
   internal fun retrieveMessage(response: PhoenixResponse) {
     when (response.event) {
-      PhoenixEvent.JOIN.phxEvent -> {
-        state.set(ChannelState.JOINED)
-      }
       PhoenixEvent.CLOSE.phxEvent -> {
         state.set(ChannelState.CLOSED)
       }
       PhoenixEvent.ERROR.phxEvent -> {
         retrieveFailure(response = response)
+        startRejoinTimer()
       }
       // Includes org.phoenixframework.PhoenixEvent.REPLY
       else -> {
@@ -153,6 +168,21 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
       refBindings[ref] = request
     }
     return request
+  }
+
+  private fun rejoin() {
+    this@Channel.join()
+  }
+
+  private fun startRejoinTimer() {
+    rejoinTimerTask = timerTask {
+      rejoin()
+    }
+    rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL, DEFAULT_REJOIN_INTERVAL)
+  }
+
+  private fun cancelRejoinTimer() {
+    rejoinTimerTask?.cancel()
   }
 
   override fun toString(): String {

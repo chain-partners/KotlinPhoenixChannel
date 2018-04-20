@@ -14,7 +14,6 @@ import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixRequestSender
 import org.phoenixframework.PhoenixResponse
 import org.phoenixframework.channel.Channel
-import org.phoenixframework.MessageCallback
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
@@ -170,7 +169,7 @@ class Socket @JvmOverloads constructor(
    */
   override fun canPushMessage(): Boolean = isConnected()
 
-  override fun pushMessage(request: PhoenixRequest, timeout: Long?, callback: MessageCallback?) {
+  override fun pushMessage(request: PhoenixRequest, timeout: Long?) {
     startTimeoutTimer(channel(request.topic), request, timeout ?: DEFAULT_TIMEOUT)
     push(request)
   }
