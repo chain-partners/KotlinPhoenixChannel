@@ -1,6 +1,6 @@
 package org.phoenixframework
 
-internal interface PhoenixRequestSender {
+interface PhoenixRequestSender {
 
   fun makeRef(): String
   fun pushMessage(request: PhoenixRequest, timeout: Long?)

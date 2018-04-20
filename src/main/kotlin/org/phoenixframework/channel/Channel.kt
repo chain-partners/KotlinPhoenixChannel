@@ -46,7 +46,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
           "Tried to join multiple times. 'join' can only be invoked once per org.phoenixframework.channel")
     }
     this.state.set(ChannelState.JOINING)
-    val joinPayload = objectMapper.readTree(payload)
+    val joinPayload = payload?.let { objectMapper.readTree(it) }
     pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
         .receive("ok", object : PhoenixResponseCallback {
           override fun onResponse(response: PhoenixResponse) {
