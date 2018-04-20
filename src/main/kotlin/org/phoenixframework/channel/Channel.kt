@@ -10,6 +10,7 @@ import org.phoenixframework.PhoenixRequestSender
 import java.io.IOException
 import java.util.ArrayList
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 class Channel
 internal constructor(private val requestSender: PhoenixRequestSender, val topic: String, private val objectMapper: ObjectMapper) {
@@ -17,7 +18,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
   private val refBindings = ConcurrentHashMap<String, MessageCallback>()
   private val eventBindings = ArrayList<EventBinding>()
 
-  private var state = ChannelState.CLOSED
+  private var state = AtomicReference<ChannelState>(ChannelState.CLOSED)
 
   private fun pushMessage(event: String, payload: JsonNode? = null, timeout: Long? = null, callback: MessageCallback? = null) {
     val ref = requestSender.makeRef()
@@ -39,12 +40,12 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
    */
   @Throws(IllegalStateException::class, IOException::class)
   fun join(payload: String?, callback: MessageCallback) {
-    if (state == ChannelState.JOINED || state == ChannelState.JOINING) {
+    if (state.get() == ChannelState.JOINED || state.get() == ChannelState.JOINING) {
       throw IllegalStateException(
           "Tried to join multiple times. 'join' can only be invoked once per org.phoenixframework.channel")
     }
+    this.state.set(ChannelState.JOINING)
     val joinPayload = objectMapper.readTree(payload)
-    this.state = ChannelState.JOINING
     pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload, callback = callback)
   }
 
@@ -58,10 +59,10 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
   internal fun retrieveMessage(response: PhoenixResponse) {
     when (response.event) {
       PhoenixEvent.JOIN.phxEvent -> {
-        state = ChannelState.JOINED
+        state.set(ChannelState.JOINED)
       }
       PhoenixEvent.CLOSE.phxEvent -> {
-        state = ChannelState.CLOSED
+        state.set(ChannelState.CLOSED)
       }
       PhoenixEvent.ERROR.phxEvent -> {
         retrieveFailure(response = response)
@@ -78,7 +79,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
   }
 
   internal fun retrieveFailure(throwable: Throwable? = null, response: PhoenixResponse? = null) {
-    state = ChannelState.ERRORED
+    state.set(ChannelState.ERRORED)
     response?.event.let { event ->
       eventBindings.filter { it.event == event }
           .forEach { it.callback?.onFailure(throwable, response) }
@@ -99,7 +100,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
    * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
   private fun canPush(): Boolean {
-    return this.state === ChannelState.JOINED && this.requestSender.canPushMessage()
+    return this.state.get() === ChannelState.JOINED && this.requestSender.canPushMessage()
   }
 
   @Throws(IOException::class)
@@ -161,7 +162,7 @@ internal constructor(private val requestSender: PhoenixRequestSender, val topic:
    */
   @Throws(IOException::class)
   fun push(event: String, payload: JsonNode? = null, timeout: Long? = null, callback: MessageCallback? = null) {
-    if (state != ChannelState.JOINED) {
+    if (state.get() != ChannelState.JOINED) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
     pushMessage(event, payload, timeout, callback)
