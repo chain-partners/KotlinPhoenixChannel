@@ -192,8 +192,6 @@ class Socket @JvmOverloads constructor(
       cancelReconnectTimer()
       startHeartbeatTimer()
       this@Socket.listeners.forEach { it.onOpen(response) }
-
-      // 다시 join이 필요하다면 flush가 아닌 buffer clear가 필요.
       flushSendBuffer()
     }
 
