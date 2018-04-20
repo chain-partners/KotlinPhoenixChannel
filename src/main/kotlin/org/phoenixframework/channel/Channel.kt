@@ -2,12 +2,11 @@ package org.phoenixframework.channel
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.phoenixframework.MessageCallback
+import org.phoenixframework.PhoenixResponseCallback
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixResponse
 import org.phoenixframework.PhoenixRequestSender
-import org.phoenixframework.PhoenixResponseCallback
 import java.io.IOException
 import java.util.ArrayList
 import java.util.Timer
@@ -48,11 +47,9 @@ internal constructor(private val requestSender: PhoenixRequestSender,
     this.state.set(ChannelState.JOINING)
     val joinPayload = payload?.let { objectMapper.readTree(it) }
     pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
-        .receive("ok", object : PhoenixResponseCallback {
-          override fun onResponse(response: PhoenixResponse) {
-            cancelRejoinTimer()
-            this@Channel.state.set(ChannelState.JOINED)
-          }
+        .receive("ok", {
+          cancelRejoinTimer()
+          this@Channel.state.set(ChannelState.JOINED)
         })
   }
 
@@ -83,14 +80,14 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @param callback The callback to be invoked with the event's message
    * @return The instance's self
    */
-  fun on(event: String, callback: MessageCallback): Channel {
+  fun on(event: String, callback: PhoenixResponseCallback): Channel {
     synchronized(eventBindings) {
       this.eventBindings.add(EventBinding(event, callback))
     }
     return this
   }
 
-  fun on(event: PhoenixEvent, callback: MessageCallback): Channel = on(event.phxEvent, callback)
+  fun on(event: PhoenixEvent, callback: PhoenixResponseCallback): Channel = on(event.phxEvent, callback)
 
   /**
    * Unsubscribe for event notifications
@@ -133,7 +130,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
           trigger(it, response)
         }
         eventBindings.filter { it.event == response.event }
-            .forEach { it.callback?.onMessage(response) }
+            .forEach { it.callback?.onResponse(response) }
       }
     }
   }

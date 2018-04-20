@@ -3,10 +3,8 @@ package org.phoenixframework.channel
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
-import io.mockk.mockk
 import io.mockk.verify
 import org.junit.Test
-import org.phoenixframework.MessageCallback
 import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixRequestSender
 import org.phoenixframework.TestBase
