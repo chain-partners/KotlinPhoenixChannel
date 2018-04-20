@@ -127,7 +127,6 @@ internal constructor(private val requestSender: PhoenixRequestSender,
       PhoenixEvent.ERROR.phxEvent -> {
         clearBindings()
         retrieveFailure(response = response)
-        startRejoinTimer()
       }
       // Includes org.phoenixframework.PhoenixEvent.REPLY
       else -> {
@@ -146,7 +145,9 @@ internal constructor(private val requestSender: PhoenixRequestSender,
       eventBindings.filter { it.event == event }
           .forEach { it.callback?.onFailure(throwable, response) }
     }
-    // TODO(changhee): Rejoin org.phoenixframework.channel with timer.
+    if (requestSender.canPushRequest()) {
+      startRejoinTimer()
+    }
   }
 
   private fun trigger(ref: String, response: PhoenixResponse) {

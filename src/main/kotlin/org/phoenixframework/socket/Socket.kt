@@ -218,12 +218,12 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
-      triggerChannelError(t)
       this@Socket.listeners.forEach { it.onFailure(t, response) }
       try {
         this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
       } finally {
         this@Socket.webSocket = null
+        triggerChannelError(t)
         if (this@Socket.reconnectOnFailure) {
           startReconnectTimer()
         }
