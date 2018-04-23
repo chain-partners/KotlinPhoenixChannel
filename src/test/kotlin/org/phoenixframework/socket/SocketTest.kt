@@ -2,7 +2,6 @@ package org.phoenixframework.socket
 
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
-import okhttp3.Response
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -64,7 +63,7 @@ class SocketTest {
   private class TestSocketEventListener: PhoenixSocketEventListener {
     var socketState: String = "closed"
 
-    override fun onOpen(response: Response?) {
+    override fun onOpen() {
       socketState = "open"
     }
 
@@ -76,7 +75,7 @@ class SocketTest {
       socketState = "closed"
     }
 
-    override fun onFailure(t: Throwable?, response: Response?) {
+    override fun onFailure(t: Throwable?) {
       socketState = "failure"
     }
 

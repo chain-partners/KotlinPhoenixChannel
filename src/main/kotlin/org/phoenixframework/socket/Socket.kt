@@ -190,7 +190,7 @@ class Socket @JvmOverloads constructor(
       this@Socket.webSocket = webSocket
       cancelReconnectTimer()
       startHeartbeatTimer()
-      this@Socket.listeners.forEach { it.onOpen(response) }
+      this@Socket.listeners.forEach { it.onOpen() }
       flushSendBuffer()
     }
 
@@ -218,7 +218,7 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
-      this@Socket.listeners.forEach { it.onFailure(t, response) }
+      this@Socket.listeners.forEach { it.onFailure(t) }
       try {
         this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
       } finally {
