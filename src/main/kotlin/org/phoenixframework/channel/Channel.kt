@@ -34,9 +34,9 @@ internal constructor(private val requestSender: PhoenixRequestSender,
   /**
    * Initiates a org.phoenixframework.channel join event
    *
-   * @return This org.phoenixframework.PhoenixRequest instance
+   * @param payload Join payload json string for join request
    * @throws IllegalStateException Thrown if the org.phoenixframework.channel has already been joined
-   * @throws IOException           Thrown if the join could not be sent
+   * @throws IOException           Thrown if the join request could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
   fun join(payload: String? = null) {
@@ -53,6 +53,12 @@ internal constructor(private val requestSender: PhoenixRequestSender,
         })
   }
 
+  /**
+   * Initiates a org.phoenixframework.channel leave event
+   *
+   * @throws IllegalStateException Thrown if the org.phoenixframework.channel or org.phoenixframework.socket is closed
+   * @throws IOException           Thrown if the leave request could not be sent
+   */
   @Throws(IllegalStateException::class, IOException::class)
   fun leave() {
     if (!canPush()) {
@@ -64,6 +70,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
   /**
    * Pushes a payload to be sent to the org.phoenixframework.channel
    *
+   * @return PhoenixRequest
    * @param event   The event name
    * @param payload The message payload
    * @param timeout The number of milliseconds to wait before triggering a timeout
@@ -79,7 +86,9 @@ internal constructor(private val requestSender: PhoenixRequestSender,
   }
 
   /**
-   * @param event    The event name
+   * Add callback on the event
+   *
+   * @param event    The event name string.
    * @param callback The callback to be invoked with the event's message
    * @return The instance's self
    */
@@ -90,10 +99,17 @@ internal constructor(private val requestSender: PhoenixRequestSender,
     return this
   }
 
+  /**
+   * Add callback on the event
+   *
+   * @param event    Pre-defined phoenix event
+   * @param callback The callback to be invoked with the event's message
+   * @return The instance's self
+   */
   fun on(event: PhoenixEvent, callback: PhoenixResponseCallback): Channel = on(event.phxEvent, callback)
 
   /**
-   * Unsubscribe for event notifications
+   * Unsubscribe for event
    *
    * @param event The event name
    * @return The instance's self
@@ -115,8 +131,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * Triggers event signalling to all callbacks bound to the specified event.
    * Do not call this method except for testing and [Socket].
    *
-   * @param triggerEvent The event name
-   * @param envelope     The response's envelope relating to the event or null if not relevant.
+   * @param response Phoenix response of the socket relating to the event or null if not relevant
    */
   internal fun retrieveResponse(response: PhoenixResponse) {
     when (response.event) {
