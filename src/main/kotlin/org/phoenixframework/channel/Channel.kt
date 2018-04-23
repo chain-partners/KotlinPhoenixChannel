@@ -42,7 +42,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
   fun join(payload: String? = null) {
     if (state.get() == ChannelState.JOINED || state.get() == ChannelState.JOINING) {
       throw IllegalStateException(
-          "Tried to join multiple times. 'join' can only be invoked once per org.phoenixframework.channel")
+          "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
     this.state.set(ChannelState.JOINING)
     val joinPayload = payload?.let { objectMapper.readTree(it) }
@@ -78,11 +78,12 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @throws IllegalStateException Thrown if the org.phoenixframework.channel has not yet been joined
    */
   @Throws(IOException::class)
-  fun pushRequest(event: String, payload: JsonNode? = null, timeout: Long? = null): PhoenixRequest {
+  fun pushRequest(event: String, payload: String? = null, timeout: Long? = null): PhoenixRequest {
     if (!canPush()) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
-    return pushMessage(event, payload, timeout)
+    val requestPayload = payload?.let { objectMapper.readTree(it) }
+    return pushMessage(event, requestPayload, timeout)
   }
 
   /**
