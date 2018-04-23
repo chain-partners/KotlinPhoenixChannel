@@ -166,7 +166,10 @@ internal constructor(private val requestSender: PhoenixRequestSender,
     }
   }
 
-  private fun trigger(ref: String, response: PhoenixResponse) {
+  /**
+   * Internal for testing
+   */
+  internal fun trigger(ref: String, response: PhoenixResponse) {
     refBindings[ref]?.matchReceive(response.responseStatus, response)
     refBindings.remove(ref)
   }
@@ -193,7 +196,10 @@ internal constructor(private val requestSender: PhoenixRequestSender,
     this@Channel.join()
   }
 
-  private fun startRejoinTimer() {
+  /**
+   * Internal for testing
+   */
+  internal fun startRejoinTimer() {
     rejoinTimerTask = timerTask {
       rejoin()
     }
@@ -216,4 +222,15 @@ internal constructor(private val requestSender: PhoenixRequestSender,
         ", eventBindings(" + eventBindings.size + ")=" + eventBindings +
         '}'
   }
+
+  /**
+   * Implements test helper methods. Only tests can use below methods.
+   */
+  internal fun getState() = state.get()
+  internal fun setState(channelState: ChannelState) {
+    state.set(channelState)
+  }
+
+  internal fun getRefBindings() = refBindings
+  internal fun getEventBindings() = eventBindings
 }
