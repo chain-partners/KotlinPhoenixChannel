@@ -1,12 +1,15 @@
 package org.phoenixframework.socket
 
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.runBlocking
 import okhttp3.Response
+import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 class SocketTest {
 
@@ -14,36 +17,26 @@ class SocketTest {
 
   private lateinit var phxSocket: Socket
 
-  private lateinit var socketEventListener: PhoenixSocketEventListener
+  private lateinit var socketEventListener: TestSocketEventListener
 
   @Before
   fun setup() {
     // localhost:4000
     mockServer.start(4000)
     phxSocket = Socket("ws://localhost:4000/socket/websocket")
-    socketEventListener = object : PhoenixSocketEventListener {
-      override fun onOpen(response: Response?) {
-      }
+    socketEventListener = TestSocketEventListener()
 
-      override fun onClosing(code: Int?, reason: String?) {
-      }
-
-      override fun onClosed(code: Int?, reason: String?) {
-      }
-
-      override fun onFailure(t: Throwable?, response: Response?) {
-      }
-
-      override fun onMessage(text: String?) {
-      }
-    }
     phxSocket.registerPhoenixSocketListener(socketEventListener)
   }
 
   @Test
-  fun connectTest() {
-    // TODO(changhee): Connect to MockWebServer.
+  fun connectTest() = runBlocking {
+    mockServer.enqueue(MockResponse().withWebSocketUpgrade(phxSocket.getWebSocketListener()))
+
     phxSocket.connect()
+    delay(100, TimeUnit.MILLISECONDS)
+
+    assertEquals("open", socketEventListener.socketState)
   }
 
   @Test
@@ -66,5 +59,28 @@ class SocketTest {
   fun tearDown() {
     phxSocket.unregisterPhoenixSocketListener(socketEventListener)
     mockServer.shutdown()
+  }
+
+  private class TestSocketEventListener: PhoenixSocketEventListener {
+    var socketState: String = "closed"
+
+    override fun onOpen(response: Response?) {
+      socketState = "open"
+    }
+
+    override fun onClosing(code: Int?, reason: String?) {
+      socketState = "closing"
+    }
+
+    override fun onClosed(code: Int?, reason: String?) {
+      socketState = "closed"
+    }
+
+    override fun onFailure(t: Throwable?, response: Response?) {
+      socketState = "failure"
+    }
+
+    override fun onMessage(text: String?) {
+    }
   }
 }
