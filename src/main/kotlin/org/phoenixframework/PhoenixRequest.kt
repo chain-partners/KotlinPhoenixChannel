@@ -11,13 +11,14 @@ data class PhoenixRequest(
 
   private val statusBindings = ArrayList<StatusBinding>()
 
-  fun receive(status: String, callback: (PhoenixResponse) -> Unit) {
+  fun receive(status: String, callback: (PhoenixResponse) -> Unit): PhoenixRequest {
     synchronized(statusBindings) {
       statusBindings.add(StatusBinding(status, callback))
     }
+    return this
   }
 
-  fun matchReceive(status: String?, response: PhoenixResponse) {
+  internal fun matchReceive(status: String?, response: PhoenixResponse) {
     if (status != null) {
       statusBindings.filter { it.status == status }.forEach { it.callback.invoke(response) }
     }

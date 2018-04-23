@@ -39,14 +39,14 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @throws IOException           Thrown if the join request could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
-  fun join(payload: String? = null) {
+  fun join(payload: String? = null): PhoenixRequest {
     if (state.get() == ChannelState.JOINED || state.get() == ChannelState.JOINING) {
       throw IllegalStateException(
           "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
     this.state.set(ChannelState.JOINING)
     val joinPayload = payload?.let { objectMapper.readTree(it) }
-    pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
+    return pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
         .receive("ok", {
           cancelRejoinTimer()
           this@Channel.state.set(ChannelState.JOINED)
