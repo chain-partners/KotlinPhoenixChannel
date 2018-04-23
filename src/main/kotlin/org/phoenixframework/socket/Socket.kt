@@ -24,10 +24,10 @@ import kotlin.concurrent.timerTask
 class Socket @JvmOverloads constructor(
     private val endpointUri: String,
     private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL,
-    private val httpClient: OkHttpClient = OkHttpClient(),
     private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule())
   : PhoenixRequestSender {
 
+  private val httpClient: OkHttpClient = OkHttpClient()
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
   private var refNumber = 1
