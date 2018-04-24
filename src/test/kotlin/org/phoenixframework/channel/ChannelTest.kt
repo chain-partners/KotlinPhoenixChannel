@@ -5,8 +5,6 @@ import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.spyk
 import io.mockk.verify
-import io.mockk.verifyAll
-import io.mockk.verifyOrder
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
@@ -15,7 +13,6 @@ import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixRequestSender
 import org.phoenixframework.PhoenixResponse
-import org.phoenixframework.PhoenixResponseCallback
 import org.phoenixframework.TestBase
 
 class ChannelTest: TestBase() {
@@ -95,19 +92,13 @@ class ChannelTest: TestBase() {
   fun onTest() {
     val event1 = "event 1"
     val event2 = "event 2"
-    val responseCallback = object : PhoenixResponseCallback {
-      override fun onResponse(response: PhoenixResponse?) {
-      }
-      override fun onFailure(throwable: Throwable?, response: PhoenixResponse?) {
-      }
-    }
 
     runBlocking {
       val job1 = launch {
-        phxChannel.on(event1, responseCallback)
+        phxChannel.on(event1)
       }
       val job2 = launch {
-        phxChannel.on(event2, responseCallback)
+        phxChannel.on(event2)
       }
       job1.join()
       job2.join()
@@ -174,19 +165,15 @@ class ChannelTest: TestBase() {
     val eventBindings = phxChannel.getEventBindings()
     val testResponse = PhoenixResponse(topic, testEvent, null, ref)
 
-    val spyCallback = spyk(object : PhoenixResponseCallback {
-      override fun onResponse(response: PhoenixResponse?) {
-      }
-      override fun onFailure(throwable: Throwable?, response: PhoenixResponse?) {
-      }
-    })
-    val testEventBinding = EventBinding(testEvent, spyCallback)
+    val successCallback = spyk({ _: PhoenixResponse? -> })
+
+    val testEventBinding = EventBinding(testEvent, success = successCallback)
     eventBindings.add(testEventBinding)
 
     spyChannel.retrieveResponse(testResponse)
     verify {
       spyChannel.trigger(ref, testResponse)
-      spyCallback.onResponse(response = testResponse)
+      successCallback.invoke(testResponse)
     }
   }
 
@@ -198,19 +185,15 @@ class ChannelTest: TestBase() {
     val eventBindings = phxChannel.getEventBindings()
     val testResponse = PhoenixResponse(topic, testEvent, null, ref)
 
-    val spyCallback = spyk(object : PhoenixResponseCallback {
-      override fun onResponse(response: PhoenixResponse?) {
-      }
-      override fun onFailure(throwable: Throwable?, response: PhoenixResponse?) {
-      }
-    })
-    val testEventBinding = EventBinding(testEvent, spyCallback)
+    val failureCallback = spyk({ _: Throwable?, _: PhoenixResponse? -> })
+
+    val testEventBinding = EventBinding(testEvent, failure = failureCallback)
     eventBindings.add(testEventBinding)
 
     spyChannel.retrieveFailure(testThrowable, testResponse)
     assertEquals(ChannelState.ERRORED, spyChannel.getState())
     verify {
-      spyCallback.onFailure(testThrowable, testResponse)
+      failureCallback.invoke(testThrowable, testResponse)
       spyChannel.startRejoinTimer()
     }
   }

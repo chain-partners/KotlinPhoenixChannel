@@ -2,7 +2,6 @@ package org.phoenixframework.channel
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.phoenixframework.PhoenixResponseCallback
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixRequest
 import org.phoenixframework.PhoenixResponse
@@ -94,9 +93,10 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @param callback The callback to be invoked with the event's message
    * @return The instance's self
    */
-  fun on(event: String, callback: PhoenixResponseCallback): Channel {
+  fun on(event: String, success: ((PhoenixResponse?) -> Unit)? = null,
+      failure: ((Throwable?, PhoenixResponse?) -> Unit)? = null): Channel {
     synchronized(eventBindings) {
-      this.eventBindings.add(EventBinding(event, callback))
+      this.eventBindings.add(EventBinding(event, success, failure))
     }
     return this
   }
@@ -108,7 +108,9 @@ internal constructor(private val requestSender: PhoenixRequestSender,
    * @param callback The callback to be invoked with the event's message
    * @return The instance's self
    */
-  fun on(event: PhoenixEvent, callback: PhoenixResponseCallback): Channel = on(event.phxEvent, callback)
+  fun on(event: PhoenixEvent, success: ((PhoenixResponse?) -> Unit)? = null,
+      failure: ((Throwable?, PhoenixResponse?) -> Unit)? = null): Channel =
+      on(event.phxEvent, success, failure)
 
   /**
    * Unsubscribe for event
@@ -151,7 +153,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
           trigger(it, response)
         }
         eventBindings.filter { it.event == response.event }
-            .forEach { it.callback?.onResponse(response) }
+            .forEach { it.success?.invoke(response) }
       }
     }
   }
@@ -160,7 +162,7 @@ internal constructor(private val requestSender: PhoenixRequestSender,
     state.set(ChannelState.ERRORED)
     response?.event.let { event ->
       eventBindings.filter { it.event == event }
-          .forEach { it.callback?.onFailure(throwable, response) }
+          .forEach { it.failure?.invoke(throwable, response) }
     }
     if (requestSender.canPushRequest()) {
       startRejoinTimer()
