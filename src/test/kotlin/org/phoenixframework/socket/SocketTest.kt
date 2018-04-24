@@ -25,7 +25,7 @@ class SocketTest {
     phxSocket = Socket("ws://localhost:4000/socket/websocket")
     socketEventListener = TestSocketEventListener()
 
-    phxSocket.registerPhoenixSocketListener(socketEventListener)
+    phxSocket.registerEventListener(socketEventListener)
   }
 
   @Test
@@ -56,7 +56,7 @@ class SocketTest {
 
   @After
   fun tearDown() {
-    phxSocket.unregisterPhoenixSocketListener(socketEventListener)
+    phxSocket.unregisterEventListener(socketEventListener)
     mockServer.shutdown()
   }
 

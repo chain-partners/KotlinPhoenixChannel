@@ -65,11 +65,11 @@ class Socket @JvmOverloads constructor(
     cancelHeartbeatTimer()
   }
 
-  fun registerPhoenixSocketListener(phoenixSocketEventListener: PhoenixSocketEventListener) {
+  fun registerEventListener(phoenixSocketEventListener: PhoenixSocketEventListener) {
     listeners.add(phoenixSocketEventListener)
   }
 
-  fun unregisterPhoenixSocketListener(phoenixSocketEventListener: PhoenixSocketEventListener) {
+  fun unregisterEventListener(phoenixSocketEventListener: PhoenixSocketEventListener) {
     listeners.remove(phoenixSocketEventListener)
   }
 
