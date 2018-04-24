@@ -120,7 +120,7 @@ class Socket @JvmOverloads constructor(
         }
       }
     }
-    timer.schedule(heartbeatTimerTask, heartbeatInterval)
+    timer.schedule(heartbeatTimerTask, heartbeatInterval, heartbeatInterval)
   }
 
   private fun cancelHeartbeatTimer() {
@@ -152,7 +152,7 @@ class Socket @JvmOverloads constructor(
         e.printStackTrace()
       }
     }
-    timer.schedule(reconnectTimerTask, DEFAULT_RECONNECT_INTERVAL)
+    timer.schedule(reconnectTimerTask, DEFAULT_RECONNECT_INTERVAL, DEFAULT_RECONNECT_INTERVAL)
   }
 
   private fun cancelReconnectTimer() {
