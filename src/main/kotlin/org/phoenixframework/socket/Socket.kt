@@ -10,9 +10,8 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import org.phoenixframework.PhoenixRequest
-import org.phoenixframework.PhoenixRequestSender
-import org.phoenixframework.PhoenixResponse
+import org.phoenixframework.Message
+import org.phoenixframework.PhoenixMessageSender
 import org.phoenixframework.channel.Channel
 import java.util.Timer
 import java.util.TimerTask
@@ -25,7 +24,7 @@ class Socket @JvmOverloads constructor(
     private val endpointUri: String,
     private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL,
     private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule())
-  : PhoenixRequestSender {
+  : PhoenixMessageSender {
 
   private val httpClient: OkHttpClient = OkHttpClient()
   private var webSocket: WebSocket? = null
@@ -73,7 +72,7 @@ class Socket @JvmOverloads constructor(
     listeners.remove(phoenixSocketEventListener)
   }
 
-  private fun push(request: PhoenixRequest): Socket {
+  private fun push(request: Message): Socket {
     send(objectMapper.writeValueAsString(request))
     return this@Socket
   }
@@ -113,7 +112,7 @@ class Socket @JvmOverloads constructor(
     heartbeatTimerTask = timerTask {
       if (isConnected()) {
         try {
-          push(PhoenixRequest("phoenix", "heartbeat",
+          push(Message("phoenix", "heartbeat",
               ObjectNode(JsonNodeFactory.instance), makeRef()))
         } catch (e: Exception) {
           e.printStackTrace()
@@ -128,7 +127,7 @@ class Socket @JvmOverloads constructor(
     heartbeatTimerTask = null
   }
 
-  private fun startTimeoutTimer(channel: Channel, request: PhoenixRequest, timeout: Long) {
+  private fun startTimeoutTimer(channel: Channel, request: Message, timeout: Long) {
     val ref = request.ref!!
     val timeoutTimerTask = timerTask {
       channel.retrieveFailure(TimeoutException("Timeout from request " + request))
@@ -165,13 +164,13 @@ class Socket @JvmOverloads constructor(
   }
 
   /**
-   * Implements [PhoenixRequestSender].
+   * Implements [PhoenixMessageSender].
    */
-  override fun canPushRequest(): Boolean = isConnected()
+  override fun canPushMessage(): Boolean = isConnected()
 
-  override fun pushRequest(request: PhoenixRequest, timeout: Long?) {
-    startTimeoutTimer(channel(request.topic), request, timeout ?: DEFAULT_TIMEOUT)
-    push(request)
+  override fun pushMessage(message: Message, timeout: Long?) {
+    startTimeoutTimer(channel(message.topic), message, timeout ?: DEFAULT_TIMEOUT)
+    push(message)
   }
 
   override fun makeRef(): String {
@@ -195,10 +194,10 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
-      val phoenixResponse = this@Socket.objectMapper.readValue(text, PhoenixResponse::class.java)
+      val message = this@Socket.objectMapper.readValue(text, Message::class.java)
       this@Socket.listeners.forEach { it.onMessage(text) }
-      phoenixResponse.ref?.let { cancelTimeoutTimer(it) }
-      this@Socket.channels[phoenixResponse.topic]?.retrieveResponse(phoenixResponse)
+      message.ref?.let { cancelTimeoutTimer(it) }
+      this@Socket.channels[message.topic]?.retrieveMessage(message)
     }
 
     override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {

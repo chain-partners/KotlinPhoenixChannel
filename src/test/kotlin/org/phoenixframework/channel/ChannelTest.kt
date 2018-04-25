@@ -5,20 +5,20 @@ import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.spyk
 import io.mockk.verify
+import io.mockk.verifyAll
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
 import org.junit.Test
 import org.phoenixframework.PhoenixEvent
-import org.phoenixframework.PhoenixRequest
-import org.phoenixframework.PhoenixRequestSender
-import org.phoenixframework.PhoenixResponse
+import org.phoenixframework.Message
+import org.phoenixframework.PhoenixMessageSender
 import org.phoenixframework.TestBase
 
 class ChannelTest: TestBase() {
 
   @RelaxedMockK
-  lateinit var requestSender: PhoenixRequestSender
+  lateinit var messageSender: PhoenixMessageSender
 
   private lateinit var phxChannel: Channel
 
@@ -28,45 +28,45 @@ class ChannelTest: TestBase() {
 
   override fun setup() {
     super.setup()
-    phxChannel = Channel(requestSender, topic, objectMapper)
-    every { requestSender.canPushRequest() } returns true
+    phxChannel = Channel(messageSender, topic, objectMapper)
+    every { messageSender.canPushMessage() } returns true
   }
 
   @Test
   fun joinTest() {
-    every { requestSender.makeRef() } returns ref
+    every { messageSender.makeRef() } returns ref
     phxChannel.join()
 
     verify {
-      requestSender.pushRequest(
-          request = PhoenixRequest(topic, PhoenixEvent.JOIN.phxEvent, null, ref),
+      messageSender.pushMessage(
+          message = Message(topic, PhoenixEvent.JOIN.phxEvent, null, ref),
           timeout = null)
     }
   }
 
   @Test(expected = IllegalStateException::class)
   fun `cannot join twice`() {
-    every { requestSender.makeRef() } returns "ref_1"
+    every { messageSender.makeRef() } returns "ref_1"
     phxChannel.join()
     phxChannel.join()
   }
 
   @Test
   fun leaveTest() {
-    every { requestSender.makeRef() } returns ref
+    every { messageSender.makeRef() } returns ref
     phxChannel.setState(ChannelState.JOINED)
     phxChannel.leave()
 
     verify {
-      requestSender.pushRequest(
-          request = PhoenixRequest(topic, PhoenixEvent.LEAVE.phxEvent, null, ref),
+      messageSender.pushMessage(
+          message = Message(topic, PhoenixEvent.LEAVE.phxEvent, null, ref),
           timeout = null)
     }
   }
 
   @Test(expected = IllegalStateException::class)
   fun leaveErrorTest() {
-    every { requestSender.makeRef() } returns ref
+    every { messageSender.makeRef() } returns ref
     phxChannel.setState(ChannelState.JOINING)
     phxChannel.leave()
   }
@@ -77,13 +77,13 @@ class ChannelTest: TestBase() {
     val payload = "{\"payload\":\"payload\"}"
     val timeout = 10L
 
-    every { requestSender.makeRef() } returns ref
+    every { messageSender.makeRef() } returns ref
     phxChannel.setState(ChannelState.JOINED)
     phxChannel.pushRequest(event, payload, timeout)
 
     verify {
-      requestSender.pushRequest(
-          request = PhoenixRequest(topic, event, objectMapper.readTree(payload), ref),
+      messageSender.pushMessage(
+          message = Message(topic, event, objectMapper.readTree(payload), ref),
           timeout = timeout)
     }
   }
@@ -138,9 +138,9 @@ class ChannelTest: TestBase() {
 
   @Test
   fun retrieveCloseResponseTest() {
-    val closeResponse = PhoenixResponse(topic, PhoenixEvent.CLOSE.phxEvent, null, null)
+    val closeMessage = Message(topic, PhoenixEvent.CLOSE.phxEvent, null, null)
 
-    phxChannel.retrieveResponse(closeResponse)
+    phxChannel.retrieveMessage(closeMessage)
     assertEquals(0, phxChannel.getRefBindings().size)
     assertEquals(0, phxChannel.getEventBindings().size)
     assertEquals(ChannelState.CLOSED, phxChannel.getState())
@@ -148,13 +148,13 @@ class ChannelTest: TestBase() {
 
   @Test
   fun retrieveErrorResponseTest() {
-    val errorResponse = PhoenixResponse(topic, PhoenixEvent.ERROR.phxEvent, null, null)
+    val errorMessage = Message(topic, PhoenixEvent.ERROR.phxEvent, null, null)
     val spyChannel = spyk(phxChannel)
-    spyChannel.retrieveResponse(errorResponse)
+    spyChannel.retrieveMessage(errorMessage)
     assertEquals(0, phxChannel.getRefBindings().size)
     assertEquals(0, phxChannel.getEventBindings().size)
     verify {
-      spyChannel.retrieveFailure(response = errorResponse)
+      spyChannel.retrieveFailure(response = errorMessage)
     }
   }
 
@@ -163,17 +163,17 @@ class ChannelTest: TestBase() {
     val spyChannel = spyk(phxChannel)
     val testEvent = "test event"
     val eventBindings = phxChannel.getEventBindings()
-    val testResponse = PhoenixResponse(topic, testEvent, null, ref)
+    val testMessage = Message(topic, testEvent, null, ref)
 
-    val successCallback = spyk({ _: PhoenixResponse? -> })
+    val successCallback = spyk({ _: Message? -> })
 
     val testEventBinding = EventBinding(testEvent, success = successCallback)
     eventBindings.add(testEventBinding)
 
-    spyChannel.retrieveResponse(testResponse)
+    spyChannel.retrieveMessage(testMessage)
     verify {
-      spyChannel.trigger(ref, testResponse)
-      successCallback.invoke(testResponse)
+      spyChannel.trigger(ref, testMessage)
+      successCallback.invoke(testMessage)
     }
   }
 
@@ -183,17 +183,17 @@ class ChannelTest: TestBase() {
     val spyChannel = spyk(phxChannel)
     val testEvent = "test event"
     val eventBindings = phxChannel.getEventBindings()
-    val testResponse = PhoenixResponse(topic, testEvent, null, ref)
+    val testMessage = Message(topic, testEvent, null, ref)
 
-    val failureCallback = spyk({ _: Throwable?, _: PhoenixResponse? -> })
+    val failureCallback = spyk({ _: Throwable?, _: Message? -> })
 
     val testEventBinding = EventBinding(testEvent, failure = failureCallback)
     eventBindings.add(testEventBinding)
 
-    spyChannel.retrieveFailure(testThrowable, testResponse)
+    spyChannel.retrieveFailure(testThrowable, testMessage)
     assertEquals(ChannelState.ERRORED, spyChannel.getState())
     verify {
-      failureCallback.invoke(testThrowable, testResponse)
+      failureCallback.invoke(testThrowable, testMessage)
       spyChannel.startRejoinTimer()
     }
   }
@@ -201,16 +201,16 @@ class ChannelTest: TestBase() {
   @Test
   fun triggerTest() {
     val testEvent = "test event"
-    val testResponse = PhoenixResponse(topic, testEvent, null, ref)
-    val spyRequest = spyk(PhoenixRequest(topic))
+    val testMessage = Message(topic, testEvent, null, ref)
+    val pair = Pair(spyk({ _: Message? -> }), spyk({ _: Message? -> }))
 
-    phxChannel.getRefBindings()[ref] = spyRequest
+    phxChannel.getRefBindings()[ref] = pair
     assertEquals(1, phxChannel.getRefBindings().size)
 
-    phxChannel.trigger(ref, testResponse)
-    assertEquals(0, phxChannel.getRefBindings().size)
+    phxChannel.trigger(ref, testMessage)
     verify {
-      spyRequest.matchReceive(any(), response = testResponse)
+      pair.second.invoke(testMessage)
     }
+    assertEquals(0, phxChannel.getRefBindings().size)
   }
 }
