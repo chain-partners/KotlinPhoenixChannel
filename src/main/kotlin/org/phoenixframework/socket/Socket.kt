@@ -1,8 +1,6 @@
 package org.phoenixframework.socket
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.JsonNodeFactory
-import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -73,7 +71,13 @@ class Socket @JvmOverloads constructor(
   }
 
   private fun push(request: Message): Socket {
-    send(objectMapper.writeValueAsString(request))
+    val node = objectMapper.createObjectNode()
+    node.put("topic", request.topic)
+    node.put("event", request.event)
+    node.put("ref", request.ref)
+    node.set("payload",
+        request.payload?.let { objectMapper.readTree(it) } ?: objectMapper.createObjectNode())
+    send(objectMapper.writeValueAsString(node))
     return this@Socket
   }
 
@@ -163,6 +167,56 @@ class Socket @JvmOverloads constructor(
   }
 
   /**
+   * These methods are for socket listener.
+  * */
+  private fun onOpen(webSocket: WebSocket?) {
+    this@Socket.webSocket = webSocket
+    cancelReconnectTimer()
+    startHeartbeatTimer()
+    this@Socket.listeners.forEach { it.onOpen() }
+    flushSendBuffer()
+  }
+
+  private fun onMessage(text: String?) {
+    val messageJson = objectMapper.readTree(text)
+    val message = Message(messageJson.get("topic").asText(),
+        messageJson.get("event").asText(),
+        messageJson.get("payload").toString(),
+        messageJson.get("ref").asText()).apply {
+      this.status = messageJson.get("payload")?.get("status")?.asText()
+      this.reason = messageJson.get("payload")?.get("response")?.get("reason")?.asText()
+    }
+    listeners.forEach { it.onMessage(text) }
+    message.ref?.let { cancelTimeoutTimer(it) }
+    channels[message.topic]?.retrieveMessage(message)
+  }
+
+  private fun onClosing(code: Int, reason: String?) {
+    listeners.forEach { it.onClosing(code, reason) }
+  }
+
+  private fun onClosed(code: Int, reason: String?) {
+    this@Socket.apply {
+      this@Socket.channels.clear()
+      this@Socket.webSocket = null
+      this@Socket.listeners.forEach { it.onClosed(code, reason) }
+    }
+  }
+
+  private fun onFailure(t: Throwable?) {
+    this@Socket.listeners.forEach { it.onFailure(t) }
+    try {
+      this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
+    } finally {
+      this@Socket.webSocket = null
+      triggerChannelError(t)
+      if (this@Socket.reconnectOnFailure) {
+        startReconnectTimer()
+      }
+    }
+  }
+
+    /**
    * Implements [PhoenixMessageSender].
    */
   override fun canSendMessage(): Boolean = isConnected()
@@ -185,25 +239,11 @@ class Socket @JvmOverloads constructor(
   private val phoenixWebSocketListener = object: WebSocketListener() {
 
     override fun onOpen(webSocket: WebSocket?, response: Response?) {
-      this@Socket.webSocket = webSocket
-      cancelReconnectTimer()
-      startHeartbeatTimer()
-      this@Socket.listeners.forEach { it.onOpen() }
-      flushSendBuffer()
+      this@Socket.onOpen(webSocket)
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
-      val messageJson = this@Socket.objectMapper.readTree(text)
-      val message = Message(messageJson["topic"].toString(),
-          messageJson["event"].toString(),
-          messageJson["payload"].toString(),
-          messageJson["ref"].toString()).apply {
-        this.responseStatus = messageJson.get("payload")?.get("status").toString()
-        this.reason = messageJson.get("payload")?.get("response")?.get("reason").toString()
-      }
-      this@Socket.listeners.forEach { it.onMessage(text) }
-      message.ref?.let { cancelTimeoutTimer(it) }
-      this@Socket.channels[message.topic]?.retrieveMessage(message)
+      this@Socket.onMessage(text)
     }
 
     override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {
@@ -211,28 +251,15 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onClosing(webSocket: WebSocket?, code: Int, reason: String?) {
-      this@Socket.listeners.forEach { it.onClosing(code, reason) }
+      this@Socket.onClosing(code, reason)
     }
 
     override fun onClosed(webSocket: WebSocket?, code: Int, reason: String?) {
-      this@Socket.apply {
-        this@Socket.channels.clear()
-        this@Socket.webSocket = null
-        this@Socket.listeners.forEach { it.onClosed(code, reason) }
-      }
+      this@Socket.onClosed(code, reason)
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
-      this@Socket.listeners.forEach { it.onFailure(t) }
-      try {
-        this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
-      } finally {
-        this@Socket.webSocket = null
-        triggerChannelError(t)
-        if (this@Socket.reconnectOnFailure) {
-          startReconnectTimer()
-        }
-      }
+      this@Socket.onFailure(t)
     }
   }
 

@@ -165,7 +165,7 @@ internal constructor(private val messageSender: PhoenixMessageSender,
    */
   internal fun trigger(ref: String, message: Message) {
     val callbackPair = refBindings[ref]
-    when (message.responseStatus) {
+    when (message.status) {
       "ok" -> callbackPair?.first?.invoke(message)
       else -> callbackPair?.second?.invoke(message)
     }

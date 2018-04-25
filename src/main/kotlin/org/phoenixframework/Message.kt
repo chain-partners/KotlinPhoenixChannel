@@ -1,7 +1,6 @@
 package org.phoenixframework
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.databind.JsonNode
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Message(
@@ -10,6 +9,6 @@ data class Message(
     val payload: String? = null,
     var ref: String? = null) {
 
-  var responseStatus: String? = null
+  var status: String? = null
   var reason: String? = null
 }
