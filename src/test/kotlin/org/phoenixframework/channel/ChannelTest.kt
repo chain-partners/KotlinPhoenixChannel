@@ -82,7 +82,7 @@ class ChannelTest: TestBase() {
 
     verify {
       messageSender.sendMessage(
-          message = Message(topic, event, objectMapper.readTree(payload), ref),
+          message = Message(topic, event, payload, ref),
           timeout = timeout)
     }
   }
