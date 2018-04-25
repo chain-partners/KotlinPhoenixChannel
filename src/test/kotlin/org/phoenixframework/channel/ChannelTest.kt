@@ -5,7 +5,6 @@ import io.mockk.every
 import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.spyk
 import io.mockk.verify
-import io.mockk.verifyAll
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
@@ -29,7 +28,7 @@ class ChannelTest: TestBase() {
   override fun setup() {
     super.setup()
     phxChannel = Channel(messageSender, topic, objectMapper)
-    every { messageSender.canPushMessage() } returns true
+    every { messageSender.canSendMessage() } returns true
   }
 
   @Test
@@ -38,7 +37,7 @@ class ChannelTest: TestBase() {
     phxChannel.join()
 
     verify {
-      messageSender.pushMessage(
+      messageSender.sendMessage(
           message = Message(topic, PhoenixEvent.JOIN.phxEvent, null, ref),
           timeout = null)
     }
@@ -58,7 +57,7 @@ class ChannelTest: TestBase() {
     phxChannel.leave()
 
     verify {
-      messageSender.pushMessage(
+      messageSender.sendMessage(
           message = Message(topic, PhoenixEvent.LEAVE.phxEvent, null, ref),
           timeout = null)
     }
@@ -82,7 +81,7 @@ class ChannelTest: TestBase() {
     phxChannel.pushRequest(event, payload, timeout)
 
     verify {
-      messageSender.pushMessage(
+      messageSender.sendMessage(
           message = Message(topic, event, objectMapper.readTree(payload), ref),
           timeout = timeout)
     }

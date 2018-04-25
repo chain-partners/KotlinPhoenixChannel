@@ -22,10 +22,10 @@ import kotlin.concurrent.timerTask
 
 class Socket @JvmOverloads constructor(
     private val endpointUri: String,
-    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL,
-    private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule())
+    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL)
   : PhoenixMessageSender {
 
+  private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
   private val httpClient: OkHttpClient = OkHttpClient()
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
@@ -112,8 +112,7 @@ class Socket @JvmOverloads constructor(
     heartbeatTimerTask = timerTask {
       if (isConnected()) {
         try {
-          push(Message("phoenix", "heartbeat",
-              ObjectNode(JsonNodeFactory.instance), makeRef()))
+          push(Message("phoenix", "heartbeat", null, makeRef()))
         } catch (e: Exception) {
           e.printStackTrace()
         }
@@ -166,9 +165,9 @@ class Socket @JvmOverloads constructor(
   /**
    * Implements [PhoenixMessageSender].
    */
-  override fun canPushMessage(): Boolean = isConnected()
+  override fun canSendMessage(): Boolean = isConnected()
 
-  override fun pushMessage(message: Message, timeout: Long?) {
+  override fun sendMessage(message: Message, timeout: Long?) {
     startTimeoutTimer(channel(message.topic), message, timeout ?: DEFAULT_TIMEOUT)
     push(message)
   }
@@ -194,7 +193,14 @@ class Socket @JvmOverloads constructor(
     }
 
     override fun onMessage(webSocket: WebSocket?, text: String?) {
-      val message = this@Socket.objectMapper.readValue(text, Message::class.java)
+      val messageJson = this@Socket.objectMapper.readTree(text)
+      val message = Message(messageJson["topic"].toString(),
+          messageJson["event"].toString(),
+          messageJson["payload"].toString(),
+          messageJson["ref"].toString()).apply {
+        this.responseStatus = messageJson.get("payload")?.get("status").toString()
+        this.reason = messageJson.get("payload")?.get("response")?.get("reason").toString()
+      }
       this@Socket.listeners.forEach { it.onMessage(text) }
       message.ref?.let { cancelTimeoutTimer(it) }
       this@Socket.channels[message.topic]?.retrieveMessage(message)

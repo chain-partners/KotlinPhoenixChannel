@@ -1,6 +1,5 @@
 package org.phoenixframework.channel
 
-import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
@@ -21,7 +20,9 @@ internal constructor(private val messageSender: PhoenixMessageSender,
     private const val DEFAULT_REJOIN_INTERVAL: Long = 7000
   }
 
-  private val refBindings = ConcurrentHashMap<String, Pair<((Message?) -> Unit)?, ((Message?) -> Unit)?>>()
+  private val refBindings = ConcurrentHashMap<String,
+      // Pair<Success, Failure>
+      Pair<((Message?) -> Unit)?, ((Message?) -> Unit)?>>()
   private val eventBindings = ArrayList<EventBinding>()
 
   private var state = AtomicReference<ChannelState>(ChannelState.CLOSED)
@@ -44,12 +45,11 @@ internal constructor(private val messageSender: PhoenixMessageSender,
           "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
     this.state.set(ChannelState.JOINING)
-    val joinPayload = payload?.let { objectMapper.readTree(it) }
-    val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, joinPayload)
+    val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, payload)
     refBindings[ref] = Pair({ message: Message? ->
       cancelRejoinTimer()
-      success?.invoke(message)
       this@Channel.state.set(ChannelState.JOINED)
+      success?.invoke(message) ?:Unit
     }, failure)
   }
 
@@ -84,8 +84,7 @@ internal constructor(private val messageSender: PhoenixMessageSender,
     if (!canPush()) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
-    val requestPayload = payload?.let { objectMapper.readTree(it) }
-    val ref = pushMessage(event, requestPayload, timeout)
+    val ref = pushMessage(event, payload, timeout)
     refBindings[ref] = Pair(success, failure)
   }
 
@@ -156,7 +155,7 @@ internal constructor(private val messageSender: PhoenixMessageSender,
       eventBindings.filter { it.event == event }
           .forEach { it.failure?.invoke(throwable, response) }
     }
-    if (messageSender.canPushMessage()) {
+    if (messageSender.canSendMessage()) {
       startRejoinTimer()
     }
   }
@@ -177,14 +176,14 @@ internal constructor(private val messageSender: PhoenixMessageSender,
    * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
   private fun canPush(): Boolean {
-    return this.state.get() == ChannelState.JOINED && this.messageSender.canPushMessage()
+    return this.state.get() == ChannelState.JOINED && this.messageSender.canSendMessage()
   }
 
-  private fun pushMessage(event: String, payload: JsonNode? = null, timeout: Long? = null)
+  private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null)
       : String {
     val ref = messageSender.makeRef()
-    if (this.messageSender.canPushMessage()) {
-      messageSender.pushMessage(Message(topic, event, payload, ref), timeout)
+    if (this.messageSender.canSendMessage()) {
+      messageSender.sendMessage(Message(topic, event, payload, ref), timeout)
     }
     return ref
   }

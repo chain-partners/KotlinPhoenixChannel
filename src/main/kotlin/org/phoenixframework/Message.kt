@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.JsonNode
 data class Message(
     val topic: String,
     val event: String? = null,
-    val payload: JsonNode? = null,
+    val payload: String? = null,
     var ref: String? = null) {
 
-  val responseStatus: String? = payload?.get("status")?.textValue()
-  val reason = payload?.get("reason")?.textValue()
+  var responseStatus: String? = null
+  var reason: String? = null
 }
