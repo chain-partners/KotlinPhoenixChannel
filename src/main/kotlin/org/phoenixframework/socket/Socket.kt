@@ -84,7 +84,7 @@ class Socket @JvmOverloads constructor(
   fun channel(topic: String): Channel {
     var channel = channels[topic]
     if (channel == null) {
-      channel = Channel(this, topic, objectMapper)
+      channel = Channel(this, topic)
       channels[topic] = channel
     }
     return channel

@@ -1,6 +1,5 @@
 package org.phoenixframework.channel
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
 import org.phoenixframework.PhoenixMessageSender
@@ -13,8 +12,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.timerTask
 
 class Channel
-internal constructor(private val messageSender: PhoenixMessageSender,
-    val topic: String, private val objectMapper: ObjectMapper) {
+internal constructor(private val messageSender: PhoenixMessageSender, val topic: String) {
 
   companion object {
     private const val DEFAULT_REJOIN_INTERVAL: Long = 7000
