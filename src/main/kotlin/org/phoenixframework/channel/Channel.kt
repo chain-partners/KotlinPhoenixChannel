@@ -121,12 +121,13 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   }
 
   /**
+   * Public for Testing
    * Triggers event signalling to all callbacks bound to the specified event.
    * Do not call this method except for testing and [Socket].
    *
    * @param message Phoenix message of the socket relating to the event or null if not relevant
    */
-  internal fun retrieveMessage(message: Message) {
+  fun retrieveMessage(message: Message) {
     when (message.event) {
       PhoenixEvent.CLOSE.phxEvent -> {
         clearBindings()
@@ -171,9 +172,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   }
 
   /**
+   * public for testing
    * @return true if the socket is open and the org.phoenixframework.channel has joined
    */
-  private fun canPush(): Boolean {
+  fun canPush(): Boolean {
     return this.state.get() == ChannelState.JOINED && this.messageSender.canSendMessage()
   }
 
