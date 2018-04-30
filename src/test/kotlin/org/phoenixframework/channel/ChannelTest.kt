@@ -22,12 +22,11 @@ class ChannelTest: TestBase() {
   private lateinit var phxChannel: Channel
 
   private val topic = "topic"
-  private val objectMapper = jacksonObjectMapper()
   private val ref = "ref_1"
 
   override fun setup() {
     super.setup()
-    phxChannel = Channel(messageSender, topic, objectMapper)
+    phxChannel = Channel(messageSender, topic)
     every { messageSender.canSendMessage() } returns true
   }
 
