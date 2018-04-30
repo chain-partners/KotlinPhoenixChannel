@@ -1,5 +1,6 @@
 package org.phoenixframework.socket
 
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import okhttp3.OkHttpClient
@@ -24,6 +25,7 @@ class Socket @JvmOverloads constructor(
   : PhoenixMessageSender {
 
   private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
+      .apply { configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) }
   private val httpClient: OkHttpClient = OkHttpClient()
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
