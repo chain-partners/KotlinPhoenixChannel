@@ -96,6 +96,7 @@ class Socket @JvmOverloads constructor(
     channels.remove(topic)
   }
 
+  // TODO : Implement another tasks to prevent memory leak if needed.
   fun removeAllChannels() {
     channels.clear()
   }
@@ -195,6 +196,7 @@ class Socket @JvmOverloads constructor(
 
   private fun onClosing(code: Int, reason: String?) {
     listeners.forEach { it.onClosing(code, reason) }
+    removeAllChannels()
   }
 
   private fun onClosed(code: Int, reason: String?) {
@@ -215,10 +217,11 @@ class Socket @JvmOverloads constructor(
       if (this@Socket.reconnectOnFailure) {
         startReconnectTimer()
       }
+      removeAllChannels()
     }
   }
 
-    /**
+  /**
    * Implements [PhoenixMessageSender].
    */
   override fun canSendMessage(): Boolean = isConnected()
