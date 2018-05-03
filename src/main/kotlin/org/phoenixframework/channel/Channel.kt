@@ -44,11 +44,13 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     }
     this.state.set(ChannelState.JOINING)
     val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, payload)
-    refBindings[ref] = Pair({ message: Message? ->
-      cancelRejoinTimer()
-      this@Channel.state.set(ChannelState.JOINED)
-      success?.invoke(message) ?:Unit
-    }, failure)
+    ref?.let {
+      refBindings[it] = Pair({ message: Message? ->
+        cancelRejoinTimer()
+        this@Channel.state.set(ChannelState.JOINED)
+        success?.invoke(message) ?:Unit
+      }, failure)
+    }
   }
 
   /**
@@ -60,7 +62,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   @Throws(IllegalStateException::class, IOException::class)
   fun leave() {
     if (!canPush()) {
-      throw IllegalStateException("Unable to leave org.phoenixframework.channel")
+      throw IllegalStateException("Unable to leave org.phoenixframework.channel($topic)")
     }
     pushMessage(PhoenixEvent.LEAVE.phxEvent)
   }
@@ -83,7 +85,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
     val ref = pushMessage(event, payload, timeout)
-    refBindings[ref] = Pair(success, failure)
+    ref?.let { refBindings[it] = Pair(success, failure) }
   }
 
   /**
@@ -179,17 +181,13 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     return this.state.get() == ChannelState.JOINED && this.messageSender.canSendMessage()
   }
 
-  private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null)
-      : String {
+  private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null): String? {
     val ref = messageSender.makeRef()
     if (this.messageSender.canSendMessage()) {
       messageSender.sendMessage(Message(topic, event, payload, ref), timeout)
+      return ref
     }
-    return ref
-  }
-
-  private fun rejoin() {
-    this@Channel.join()
+    return null
   }
 
   /**
@@ -197,7 +195,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   internal fun startRejoinTimer() {
     rejoinTimerTask = timerTask {
-      rejoin()
+      this@Channel.join()
     }
     rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL, DEFAULT_REJOIN_INTERVAL)
   }
