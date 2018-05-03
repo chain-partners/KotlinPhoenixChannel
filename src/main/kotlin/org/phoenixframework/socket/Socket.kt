@@ -196,7 +196,6 @@ class Socket @JvmOverloads constructor(
 
   private fun onClosing(code: Int, reason: String?) {
     listeners.forEach { it.onClosing(code, reason) }
-    removeAllChannels()
   }
 
   private fun onClosed(code: Int, reason: String?) {
@@ -204,6 +203,7 @@ class Socket @JvmOverloads constructor(
       this@Socket.channels.clear()
       this@Socket.webSocket = null
       this@Socket.listeners.forEach { it.onClosed(code, reason) }
+      removeAllChannels()
     }
   }
 
@@ -217,7 +217,6 @@ class Socket @JvmOverloads constructor(
       if (this@Socket.reconnectOnFailure) {
         startReconnectTimer()
       }
-      removeAllChannels()
     }
   }
 
