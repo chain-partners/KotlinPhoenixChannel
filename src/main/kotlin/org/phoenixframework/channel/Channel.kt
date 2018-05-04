@@ -61,6 +61,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   @Throws(IllegalStateException::class, IOException::class)
   fun leave() {
+    clearBindings()
     if (!canPush()) {
       throw IllegalStateException("Unable to leave org.phoenixframework.channel($topic)")
     }
@@ -150,7 +151,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   }
 
   internal fun retrieveFailure(throwable: Throwable? = null, response: Message? = null) {
-    state.set(ChannelState.ERRORED)
+    state.set(ChannelState.ERROR)
     eventBindings.forEach { it.failure?.invoke(throwable, response) }
     if (messageSender.canSendMessage()) {
       startRejoinTimer()

@@ -2,7 +2,7 @@ package org.phoenixframework.channel
 
 enum class ChannelState {
   CLOSED,
-  ERRORED,
+  ERROR,
   JOINED,
   JOINING
 }

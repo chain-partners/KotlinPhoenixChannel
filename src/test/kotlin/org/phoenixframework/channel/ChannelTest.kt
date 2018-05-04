@@ -188,7 +188,7 @@ class ChannelTest: TestBase() {
     eventBindings.add(testEventBinding)
 
     spyChannel.retrieveFailure(testThrowable, testMessage)
-    assertEquals(ChannelState.ERRORED, spyChannel.getState())
+    assertEquals(ChannelState.ERROR, spyChannel.getState())
     verify {
       failureCallback.invoke(testThrowable, testMessage)
       spyChannel.startRejoinTimer()
