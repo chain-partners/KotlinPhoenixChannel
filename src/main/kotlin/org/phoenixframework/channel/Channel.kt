@@ -151,10 +151,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
 
   internal fun retrieveFailure(throwable: Throwable? = null, response: Message? = null) {
     state.set(ChannelState.ERRORED)
-    response?.event.let { event ->
-      eventBindings.filter { it.event == event }
-          .forEach { it.failure?.invoke(throwable, response) }
-    }
+    eventBindings.forEach { it.failure?.invoke(throwable, response) }
     if (messageSender.canSendMessage()) {
       startRejoinTimer()
     }
