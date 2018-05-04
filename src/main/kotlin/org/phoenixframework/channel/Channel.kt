@@ -136,7 +136,6 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
         state.set(ChannelState.CLOSED)
       }
       PhoenixEvent.ERROR.phxEvent -> {
-        clearBindings()
         retrieveFailure(response = message)
       }
       // Includes org.phoenixframework.PhoenixEvent.REPLY
