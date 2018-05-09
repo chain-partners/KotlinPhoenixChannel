@@ -153,6 +153,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun retrieveFailure(throwable: Throwable? = null, response: Message? = null) {
     state.set(ChannelState.ERROR)
     eventBindings.forEach { it.failure?.invoke(throwable, response) }
+    clearBindings()
     if (messageSender.canSendMessage()) {
       startRejoinTimer()
     }
@@ -192,6 +193,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   internal fun startRejoinTimer() {
     rejoinTimerTask = timerTask {
+      this@Channel.state.set(ChannelState.ERROR)
       this@Channel.join()
     }
     rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL, DEFAULT_REJOIN_INTERVAL)
