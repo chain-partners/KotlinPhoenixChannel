@@ -203,6 +203,7 @@ class Socket @JvmOverloads constructor(
       this@Socket.channels.clear()
       this@Socket.webSocket = null
       this@Socket.listeners.forEach { it.onClosed(code, reason) }
+      triggerChannelError(SocketClosedException("Socket Closed"))
       removeAllChannels()
     }
   }
