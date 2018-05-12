@@ -200,7 +200,6 @@ class Socket @JvmOverloads constructor(
 
   private fun onClosed(code: Int, reason: String?) {
     this@Socket.apply {
-      this@Socket.channels.clear()
       this@Socket.webSocket = null
       this@Socket.listeners.forEach { it.onClosed(code, reason) }
       triggerChannelError(SocketClosedException("Socket Closed"))
