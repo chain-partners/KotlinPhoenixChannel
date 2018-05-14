@@ -48,8 +48,12 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       refBindings[it] = Pair({ message: Message? ->
         cancelRejoinTimer()
         this@Channel.state.set(ChannelState.JOINED)
-        success?.invoke(message) ?:Unit
-      }, failure)
+        success?.invoke(message) ?: Unit
+      }, { message: Message? ->
+        cancelRejoinTimer()
+        this@Channel.state.set(ChannelState.CLOSED)
+        failure?.invoke(message) ?: Unit
+      })
     }
   }
 
