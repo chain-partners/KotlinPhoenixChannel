@@ -28,6 +28,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       Pair<((Message?) -> Unit)?, ((Message?) -> Unit)?>>()
   private val eventBindings = ArrayList<EventBinding>()
 
+  private var joinRef: String? = null
   private var state = AtomicReference<ChannelState>(ChannelState.CLOSED)
 
   private val rejoinTimer = Timer("Rejoin Timer for $topic")
@@ -73,6 +74,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     ref?.let {
       refBindings[it] = Pair({ message: Message? ->
         cancelRejoinTimer()
+        joinRef = it
         this@Channel.setState(ChannelState.JOINED)
         success?.invoke(message) ?: Unit
       }, { message: Message? ->
@@ -163,8 +165,11 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   fun retrieveMessage(message: Message) {
     when (message.event) {
       PhoenixEvent.CLOSE.phxEvent -> {
-        clearBindings()
-        this@Channel.setState(ChannelState.CLOSED)
+        if (joinRef != null && joinRef == message.ref) {
+          clearBindings()
+          this@Channel.setState(ChannelState.CLOSED)
+          joinRef = null
+        }
       }
       PhoenixEvent.ERROR.phxEvent -> {
         retrieveFailure(response = message)
