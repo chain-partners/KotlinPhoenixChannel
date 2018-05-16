@@ -42,6 +42,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     listeners.remove(phoenixChannelStateListener)
   }
 
+  fun clearStateListeners() {
+    listeners.clear()
+  }
+
   /**
    * Internal for testing
    */
@@ -254,7 +258,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    * Implements test helper methods. Only tests can use below methods.
    */
   internal fun getState() = state.get()
-
+  internal fun setJoinRef(ref: String) {
+    joinRef = ref
+  }
+  internal fun getJoinRef() = joinRef
   internal fun getRefBindings() = refBindings
   internal fun getEventBindings() = eventBindings
 }

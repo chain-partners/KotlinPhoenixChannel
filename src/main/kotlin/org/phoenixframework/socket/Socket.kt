@@ -98,6 +98,7 @@ class Socket @JvmOverloads constructor(
 
   // TODO : Implement another tasks to prevent memory leak if needed.
   private fun removeAllChannels() {
+    channels.forEach { it.value.clearStateListeners() }
     channels.clear()
   }
 

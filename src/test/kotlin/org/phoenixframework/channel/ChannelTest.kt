@@ -7,6 +7,7 @@ import io.mockk.verify
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
@@ -135,7 +136,13 @@ class ChannelTest: TestBase() {
 
   @Test
   fun retrieveCloseResponseTest() {
-    val closeMessage = Message(topic, PhoenixEvent.CLOSE.phxEvent, null, null)
+    phxChannel.setState(ChannelState.JOINED)
+    phxChannel.setJoinRef(ref)
+    val errorCloseMessage = Message(topic, PhoenixEvent.CLOSE.phxEvent, null, "ref")
+    val closeMessage = Message(topic, PhoenixEvent.CLOSE.phxEvent, null, ref)
+
+    phxChannel.retrieveMessage(errorCloseMessage)
+    assertNotEquals(ChannelState.CLOSED, phxChannel.getState())
 
     phxChannel.retrieveMessage(closeMessage)
     assertEquals(0, phxChannel.getRefBindings().size)
