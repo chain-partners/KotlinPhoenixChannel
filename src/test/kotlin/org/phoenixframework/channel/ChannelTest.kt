@@ -178,6 +178,7 @@ class ChannelTest: TestBase() {
   fun retrieveFailureTest() {
     val testThrowable = Exception("Test Exception")
     val spyChannel = spyk(phxChannel)
+    spyChannel.rejoinOnFailure = true
     val testEvent = "test event"
     val eventBindings = phxChannel.getEventBindings()
     val testMessage = Message(topic, testEvent, null, ref)
