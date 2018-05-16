@@ -3,6 +3,7 @@ package org.phoenixframework.channel
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
 import org.phoenixframework.PhoenixMessageSender
+import org.phoenixframework.socket.PhoenixSocketEventListener
 import java.io.IOException
 import java.util.ArrayList
 import java.util.Timer
@@ -18,6 +19,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     private const val DEFAULT_REJOIN_INTERVAL: Long = 7000
   }
 
+  var rejoinOnFailure: Boolean = false
+
+  private var listeners = mutableSetOf<PhoenixChannelStateListener>()
+
   private val refBindings = ConcurrentHashMap<String,
       // Pair<Success, Failure>
       Pair<((Message?) -> Unit)?, ((Message?) -> Unit)?>>()
@@ -27,6 +32,27 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
 
   private val rejoinTimer = Timer("Rejoin Timer for $topic")
   private var rejoinTimerTask: TimerTask? = null
+
+  fun registerStateListener(phoenixChannelStateListener: PhoenixChannelStateListener) {
+    listeners.add(phoenixChannelStateListener)
+  }
+
+  fun unregisterStateListener(phoenixChannelStateListener: PhoenixChannelStateListener) {
+    listeners.remove(phoenixChannelStateListener)
+  }
+
+  /**
+   * Internal for testing
+   */
+  internal fun setState(channelState: ChannelState) {
+    state.set(channelState)
+    when (channelState) {
+      ChannelState.JOINED -> listeners.forEach { it.onJoined() }
+      ChannelState.CLOSED -> listeners.forEach { it.onClosed() }
+      ChannelState.ERROR -> listeners.forEach { it.onError() }
+      ChannelState.JOINING -> listeners.forEach { it.onJoining() }
+    }
+  }
 
   /**
    * Initiates a org.phoenixframework.channel join event
@@ -42,16 +68,16 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       throw IllegalStateException(
           "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
-    this.state.set(ChannelState.JOINING)
+    this@Channel.setState(ChannelState.JOINING)
     val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, payload)
     ref?.let {
       refBindings[it] = Pair({ message: Message? ->
         cancelRejoinTimer()
-        this@Channel.state.set(ChannelState.JOINED)
+        this@Channel.setState(ChannelState.JOINED)
         success?.invoke(message) ?: Unit
       }, { message: Message? ->
         cancelRejoinTimer()
-        this@Channel.state.set(ChannelState.CLOSED)
+        this@Channel.setState(ChannelState.CLOSED)
         failure?.invoke(message) ?: Unit
       })
     }
@@ -138,7 +164,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     when (message.event) {
       PhoenixEvent.CLOSE.phxEvent -> {
         clearBindings()
-        state.set(ChannelState.CLOSED)
+        this@Channel.setState(ChannelState.CLOSED)
       }
       PhoenixEvent.ERROR.phxEvent -> {
         retrieveFailure(response = message)
@@ -155,10 +181,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   }
 
   internal fun retrieveFailure(throwable: Throwable? = null, response: Message? = null) {
-    state.set(ChannelState.ERROR)
+    this@Channel.setState(ChannelState.ERROR)
     eventBindings.forEach { it.failure?.invoke(throwable, response) }
     clearBindings()
-    if (messageSender.canSendMessage()) {
+    if (messageSender.canSendMessage() && rejoinOnFailure) {
       startRejoinTimer()
     }
   }
@@ -197,7 +223,6 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   internal fun startRejoinTimer() {
     rejoinTimerTask = timerTask {
-      this@Channel.state.set(ChannelState.ERROR)
       this@Channel.join()
     }
     rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL, DEFAULT_REJOIN_INTERVAL)
@@ -224,9 +249,6 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    * Implements test helper methods. Only tests can use below methods.
    */
   internal fun getState() = state.get()
-  internal fun setState(channelState: ChannelState) {
-    state.set(channelState)
-  }
 
   internal fun getRefBindings() = refBindings
   internal fun getEventBindings() = eventBindings
