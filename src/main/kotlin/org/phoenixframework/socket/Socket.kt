@@ -15,8 +15,9 @@ import org.phoenixframework.channel.Channel
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.timerTask
 
 class Socket @JvmOverloads constructor(
@@ -41,8 +42,7 @@ class Socket @JvmOverloads constructor(
 
   private val timeoutTimerTasks = ConcurrentHashMap<String, TimerTask>()
 
-  // buffer가 비어있으면 작업을 중지하고 blocking 상태가 됨.
-  private var messageBuffer: LinkedBlockingQueue<String> = LinkedBlockingQueue()
+  private var messageBuffer: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
 
   companion object {
     private const val DEFAULT_HEARTBEAT_INTERVAL: Long = 7000
@@ -103,9 +103,11 @@ class Socket @JvmOverloads constructor(
   }
 
   private fun send(json: String) {
-    messageBuffer.put(json)
+    messageBuffer.offer(json)
     while (isConnected() && messageBuffer.isNotEmpty()) {
-      webSocket?.send(messageBuffer.take())
+      messageBuffer.poll()?.let {
+        webSocket?.send(it)
+      }
     }
   }
 
