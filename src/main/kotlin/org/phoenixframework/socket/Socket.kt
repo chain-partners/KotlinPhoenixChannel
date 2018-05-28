@@ -17,17 +17,17 @@ import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.timerTask
 
 class Socket @JvmOverloads constructor(
+    okHttpClient: OkHttpClient? = null,
     private val endpointUri: String,
     private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL)
   : PhoenixMessageSender {
 
   private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
       .apply { configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) }
-  private val httpClient: OkHttpClient = OkHttpClient()
+  private val httpClient: OkHttpClient = okHttpClient ?: OkHttpClient()
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
   private var refNumber = 1
