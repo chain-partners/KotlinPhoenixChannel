@@ -22,7 +22,7 @@ class SocketTest {
   fun setup() {
     // localhost:4000
     mockServer.start(4000)
-    phxSocket = Socket("ws://localhost:4000/socket/websocket")
+    phxSocket = Socket(endpointUri = "ws://localhost:4000/socket/websocket")
     socketEventListener = TestSocketEventListener()
 
     phxSocket.registerEventListener(socketEventListener)

@@ -3,7 +3,6 @@ package org.phoenixframework.channel
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
 import org.phoenixframework.PhoenixMessageSender
-import org.phoenixframework.socket.PhoenixSocketEventListener
 import java.io.IOException
 import java.util.ArrayList
 import java.util.Timer
@@ -97,7 +96,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   @Throws(IllegalStateException::class, IOException::class)
   fun leave() {
-    clearBindings()
+    clearEventBindings()
     if (!canPush()) {
       throw IllegalStateException("Unable to leave org.phoenixframework.channel($topic)")
     }
@@ -170,7 +169,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     when (message.event) {
       PhoenixEvent.CLOSE.phxEvent -> {
         if (joinRef != null && joinRef == message.ref) {
-          clearBindings()
+          clearEventBindings()
           this@Channel.setState(ChannelState.CLOSED)
           joinRef = null
         }
@@ -192,7 +191,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun retrieveFailure(throwable: Throwable? = null, response: Message? = null) {
     this@Channel.setState(ChannelState.ERROR)
     eventBindings.forEach { it.failure?.invoke(throwable, response) }
-    clearBindings()
+    clearEventBindings()
     if (messageSender.canSendMessage() && rejoinOnFailure) {
       startRejoinTimer()
     }
@@ -242,9 +241,8 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     rejoinTimerTask = null
   }
 
-  private fun clearBindings() {
+  private fun clearEventBindings() {
     eventBindings.clear()
-    refBindings.clear()
   }
 
   override fun toString(): String {
