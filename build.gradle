@@ -37,6 +37,8 @@ dependencies {
     testImplementation "com.squareup.okhttp3:mockwebserver:$okhttp_version"
 
     testCompile "io.mockk:mockk:1.7.15"
+
+    implementation 'org.slf4j:slf4j-api:1.7.25'
 }
 
 compileKotlin {

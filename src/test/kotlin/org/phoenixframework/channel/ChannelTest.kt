@@ -52,7 +52,7 @@ class ChannelTest: TestBase() {
   @Test
   fun leaveTest() {
     every { messageSender.makeRef() } returns ref
-    phxChannel.setState(ChannelState.JOINED)
+    phxChannel.updateState(ChannelState.JOINED)
     phxChannel.leave()
 
     verify {
@@ -65,7 +65,7 @@ class ChannelTest: TestBase() {
   @Test(expected = IllegalStateException::class)
   fun leaveErrorTest() {
     every { messageSender.makeRef() } returns ref
-    phxChannel.setState(ChannelState.JOINING)
+    phxChannel.updateState(ChannelState.JOINING)
     phxChannel.leave()
   }
 
@@ -76,7 +76,7 @@ class ChannelTest: TestBase() {
     val timeout = 10L
 
     every { messageSender.makeRef() } returns ref
-    phxChannel.setState(ChannelState.JOINED)
+    phxChannel.updateState(ChannelState.JOINED)
     phxChannel.pushRequest(event, payload, timeout)
 
     verify {
@@ -136,7 +136,7 @@ class ChannelTest: TestBase() {
 
   @Test
   fun retrieveCloseResponseTest() {
-    phxChannel.setState(ChannelState.JOINED)
+    phxChannel.updateState(ChannelState.JOINED)
     phxChannel.setJoinRef(ref)
     val errorCloseMessage = Message(topic, PhoenixEvent.CLOSE.phxEvent, null, "ref")
     val closeMessage = Message(topic, PhoenixEvent.CLOSE.phxEvent, null, ref)
@@ -195,7 +195,7 @@ class ChannelTest: TestBase() {
     val testEventBinding = EventBinding(testEvent, failure = failureCallback)
     eventBindings.add(testEventBinding)
 
-    spyChannel.retrieveFailure(testThrowable, testMessage)
+    spyChannel.retrieveFailure(testMessage, testThrowable)
     assertEquals(ChannelState.ERROR, spyChannel.getState())
     verify {
       failureCallback.invoke(testThrowable, testMessage)
@@ -207,14 +207,14 @@ class ChannelTest: TestBase() {
   fun triggerTest() {
     val testEvent = "test event"
     val testMessage = Message(topic, testEvent, null, ref)
-    val pair = Pair(spyk({ _: Message? -> }), spyk({ _: Message? -> }))
+    val pair = Pair(spyk({ _: Message? -> }), spyk({ _: Message?, _: Throwable? -> }))
 
     phxChannel.getRefBindings()[ref] = pair
     assertEquals(1, phxChannel.getRefBindings().size)
 
     phxChannel.trigger(ref, testMessage)
     verify {
-      pair.second.invoke(testMessage)
+      pair.second.invoke(testMessage, null)
     }
     assertEquals(0, phxChannel.getRefBindings().size)
   }

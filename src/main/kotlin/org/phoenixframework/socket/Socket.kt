@@ -12,6 +12,7 @@ import okio.ByteString
 import org.phoenixframework.Message
 import org.phoenixframework.PhoenixMessageSender
 import org.phoenixframework.channel.Channel
+import org.slf4j.LoggerFactory
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
@@ -48,6 +49,8 @@ class Socket @JvmOverloads constructor(
     private const val DEFAULT_HEARTBEAT_INTERVAL: Long = 7000
     private const val DEFAULT_RECONNECT_INTERVAL: Long = 5000
     private const val DEFAULT_TIMEOUT: Long = 5000
+
+    private val LOG = LoggerFactory.getLogger(Socket::class.java)
   }
 
   fun connect() {
@@ -58,8 +61,8 @@ class Socket @JvmOverloads constructor(
     webSocket = httpClient.newWebSocket(request, phoenixWebSocketListener)
   }
 
-  fun disconnect() {
-    webSocket?.close(1001, "Disconnect By Client")
+  fun disconnect(code: Int = 3000) {
+    webSocket?.close(code, "Disconnect By Client")
     cancelReconnectTimer()
     cancelHeartbeatTimer()
   }
@@ -139,7 +142,7 @@ class Socket @JvmOverloads constructor(
   private fun startTimeoutTimer(channel: Channel, request: Message, timeout: Long) {
     val ref = request.ref!!
     val timeoutTimerTask = timerTask {
-      channel.retrieveFailure(TimeoutException("Timeout from request " + request))
+      channel.retrieveFailure(throwable = TimeoutException("Timeout from request " + request))
     }
     timeoutTimerTasks[ref] = timeoutTimerTask
     timeoutTimer.schedule(timeoutTimerTask, timeout)
@@ -169,12 +172,12 @@ class Socket @JvmOverloads constructor(
   }
 
   private fun triggerChannelError(throwable: Throwable?) {
-    channels.values.forEach { it.retrieveFailure(throwable) }
+    channels.values.forEach { it.retrieveFailure(throwable = throwable) }
   }
 
   /**
    * These methods are for socket listener.
-  * */
+   * */
   private fun onOpen(webSocket: WebSocket?) {
     this@Socket.webSocket = webSocket
     cancelReconnectTimer()
@@ -199,23 +202,29 @@ class Socket @JvmOverloads constructor(
 
   private fun onClosing(code: Int, reason: String?) {
     listeners.forEach { it.onClosing(code, reason) }
-  }
-
-  private fun onClosed(code: Int, reason: String?) {
-    this@Socket.apply {
-      this@Socket.webSocket = null
-      this@Socket.listeners.forEach { it.onClosed(code, reason) }
+    if (code == 1000) {
+      // If disconnected by the server, close or cancel manually.
+      // https://github.com/square/okhttp/issues/3386
+      cancelHeartbeatTimer()
+      webSocket = null
       triggerChannelError(SocketClosedException("Socket Closed"))
       removeAllChannels()
     }
   }
 
+  private fun onClosed(code: Int, reason: String?) {
+    webSocket = null
+    listeners.forEach { it.onClosed(code, reason) }
+    triggerChannelError(SocketClosedException("Socket Closed"))
+    removeAllChannels()
+  }
+
   private fun onFailure(t: Throwable?) {
-    this@Socket.listeners.forEach { it.onFailure(t) }
+    listeners.forEach { it.onFailure(t) }
     try {
-      this@Socket.webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
+      webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
     } finally {
-      this@Socket.webSocket = null
+      webSocket = null
       triggerChannelError(t)
       if (this@Socket.reconnectOnFailure) {
         startReconnectTimer()
@@ -243,7 +252,7 @@ class Socket @JvmOverloads constructor(
     }
   }
 
-  private val phoenixWebSocketListener = object: WebSocketListener() {
+  private val phoenixWebSocketListener = object : WebSocketListener() {
 
     override fun onOpen(webSocket: WebSocket?, response: Response?) {
       this@Socket.onOpen(webSocket)

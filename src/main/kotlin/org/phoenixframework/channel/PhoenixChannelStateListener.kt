@@ -9,7 +9,7 @@ interface PhoenixChannelStateListener {
 
   fun onJoining()
 
-  fun onError()
+  fun onError(throwable: Throwable?)
 
   fun onClosed()
 }

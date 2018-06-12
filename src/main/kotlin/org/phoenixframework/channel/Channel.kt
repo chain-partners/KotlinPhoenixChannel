@@ -24,7 +24,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
 
   private val refBindings = ConcurrentHashMap<String,
       // Pair<Success, Failure>
-      Pair<((Message?) -> Unit)?, ((Message?) -> Unit)?>>()
+      Pair<((Message?) -> Unit)?, ((Message?, Throwable?) -> Unit)?>>()
   private val eventBindings = ArrayList<EventBinding>()
 
   private var joinRef: String? = null
@@ -48,12 +48,12 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   /**
    * Internal for testing
    */
-  internal fun setState(channelState: ChannelState) {
+  internal fun updateState(channelState: ChannelState, throwable: Throwable? = null) {
     state.set(channelState)
     when (channelState) {
       ChannelState.JOINED -> listeners.forEach { it.onJoined() }
       ChannelState.CLOSED -> listeners.forEach { it.onClosed() }
-      ChannelState.ERROR -> listeners.forEach { it.onError() }
+      ChannelState.ERROR -> listeners.forEach { it.onError(throwable) }
       ChannelState.JOINING -> listeners.forEach { it.onJoining() }
     }
   }
@@ -67,23 +67,23 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   @Throws(IllegalStateException::class, IOException::class)
   fun join(payload: String? = null, success: ((Message?) -> Unit)? = null,
-      failure: ((Message?) -> Unit)? = null) {
+      failure: ((Message?, Throwable?) -> Unit)? = null) {
     if (state.get() == ChannelState.JOINED || state.get() == ChannelState.JOINING) {
       throw IllegalStateException(
           "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
-    this@Channel.setState(ChannelState.JOINING)
+    updateState(ChannelState.JOINING)
     val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, payload)
     ref?.let {
       refBindings[it] = Pair({ message: Message? ->
         cancelRejoinTimer()
         joinRef = it
-        this@Channel.setState(ChannelState.JOINED)
+        updateState(ChannelState.JOINED)
         success?.invoke(message) ?: Unit
-      }, { message: Message? ->
+      }, { message: Message?, t: Throwable? ->
         cancelRejoinTimer()
-        this@Channel.setState(ChannelState.CLOSED)
-        failure?.invoke(message) ?: Unit
+        updateState(ChannelState.CLOSED)
+        failure?.invoke(message, t) ?: Unit
       })
     }
   }
@@ -116,7 +116,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   @Throws(IOException::class)
   fun pushRequest(event: String, payload: String? = null, timeout: Long? = null,
       success: ((Message?) -> Unit)? = null,
-      failure: ((Message?) -> Unit)? = null) {
+      failure: ((Message?, Throwable?) -> Unit)? = null) {
     if (!canPush()) {
       throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
     }
@@ -170,7 +170,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       PhoenixEvent.CLOSE.phxEvent -> {
         if (joinRef != null && joinRef == message.ref) {
           clearEventBindings()
-          this@Channel.setState(ChannelState.CLOSED)
+          updateState(ChannelState.CLOSED)
           joinRef = null
         }
       }
@@ -188,8 +188,9 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     }
   }
 
-  internal fun retrieveFailure(throwable: Throwable? = null, response: Message? = null) {
-    this@Channel.setState(ChannelState.ERROR)
+  internal fun retrieveFailure(response: Message? = null, throwable: Throwable? = null) {
+    updateState(ChannelState.ERROR, throwable)
+    refBindings.forEach { it.value.second?.invoke(response, throwable) }
     eventBindings.forEach { it.failure?.invoke(throwable, response) }
     clearEventBindings()
     if (messageSender.canSendMessage() && rejoinOnFailure) {
@@ -204,7 +205,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     val callbackPair = refBindings[ref]
     when (message.status) {
       "ok" -> callbackPair?.first?.invoke(message)
-      else -> callbackPair?.second?.invoke(message)
+      else -> callbackPair?.second?.invoke(message, null)
     }
     refBindings.remove(ref)
   }
