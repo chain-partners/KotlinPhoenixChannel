@@ -182,7 +182,7 @@ class Socket @JvmOverloads constructor(
     this@Socket.webSocket = webSocket
     cancelReconnectTimer()
     startHeartbeatTimer()
-    this@Socket.listeners.forEach { it.onOpen() }
+    this@Socket.listeners.forEach { it.onOpen(this) }
     flushSendBuffer()
   }
 
@@ -195,13 +195,13 @@ class Socket @JvmOverloads constructor(
       this.status = messageJson.get("payload")?.get("status")?.asText()
       this.reason = messageJson.get("payload")?.get("response")?.get("reason")?.asText()
     }
-    listeners.forEach { it.onMessage(text) }
+    listeners.forEach { it.onMessage(this, text) }
     message.ref?.let { cancelTimeoutTimer(it) }
     channels[message.topic]?.retrieveMessage(message)
   }
 
   private fun onClosing(code: Int, reason: String?) {
-    listeners.forEach { it.onClosing(code, reason) }
+    listeners.forEach { it.onClosing(this, code, reason) }
     if (code == 1000) {
       // If disconnected by the server, close or cancel manually.
       // https://github.com/square/okhttp/issues/3386
@@ -214,13 +214,13 @@ class Socket @JvmOverloads constructor(
 
   private fun onClosed(code: Int, reason: String?) {
     webSocket = null
-    listeners.forEach { it.onClosed(code, reason) }
+    listeners.forEach { it.onClosed(this, code, reason) }
     triggerChannelError(SocketClosedException("Socket Closed"))
     removeAllChannels()
   }
 
   private fun onFailure(t: Throwable?) {
-    listeners.forEach { it.onFailure(t) }
+    listeners.forEach { it.onFailure(this, t) }
     try {
       webSocket?.close(1001 /* GOING_AWAY */, "Error Occurred")
     } finally {

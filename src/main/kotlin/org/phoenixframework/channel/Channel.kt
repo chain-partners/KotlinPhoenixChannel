@@ -53,10 +53,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun updateState(channelState: ChannelState, throwable: Throwable? = null) {
     state.set(channelState)
     when (channelState) {
-      ChannelState.JOINED -> listeners.forEach { it.onJoined() }
-      ChannelState.CLOSED -> listeners.forEach { it.onClosed() }
-      ChannelState.ERROR -> listeners.forEach { it.onError(throwable) }
-      ChannelState.JOINING -> listeners.forEach { it.onJoining() }
+      ChannelState.JOINED -> listeners.forEach { it.onJoined(this) }
+      ChannelState.CLOSED -> listeners.forEach { it.onClosed(this) }
+      ChannelState.ERROR -> listeners.forEach { it.onError(this, throwable) }
+      ChannelState.JOINING -> listeners.forEach { it.onJoining(this) }
     }
   }
 

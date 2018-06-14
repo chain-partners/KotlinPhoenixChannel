@@ -5,13 +5,13 @@ package org.phoenixframework.socket
  */
 interface PhoenixSocketEventListener {
 
-  fun onOpen()
+  fun onOpen(socket: Socket)
 
-  fun onClosing(code: Int?, reason: String?)
+  fun onClosing(socket: Socket, code: Int?, reason: String?)
 
-  fun onClosed(code: Int?, reason: String?)
+  fun onClosed(socket: Socket, code: Int?, reason: String?)
 
-  fun onFailure(t: Throwable?)
+  fun onFailure(socket: Socket, t: Throwable?)
 
-  fun onMessage(text: String?)
+  fun onMessage(socket: Socket, text: String?)
 }

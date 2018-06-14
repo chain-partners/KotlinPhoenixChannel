@@ -63,23 +63,23 @@ class SocketTest {
   private class TestSocketEventListener: PhoenixSocketEventListener {
     var socketState: String = "closed"
 
-    override fun onOpen() {
+    override fun onOpen(socket: Socket) {
       socketState = "open"
     }
 
-    override fun onClosing(code: Int?, reason: String?) {
+    override fun onClosing(socket: Socket, code: Int?, reason: String?) {
       socketState = "closing"
     }
 
-    override fun onClosed(code: Int?, reason: String?) {
+    override fun onClosed(socket: Socket, code: Int?, reason: String?) {
       socketState = "closed"
     }
 
-    override fun onFailure(t: Throwable?) {
+    override fun onFailure(socket: Socket, t: Throwable?) {
       socketState = "failure"
     }
 
-    override fun onMessage(text: String?) {
+    override fun onMessage(socket: Socket, text: String?) {
     }
   }
 }

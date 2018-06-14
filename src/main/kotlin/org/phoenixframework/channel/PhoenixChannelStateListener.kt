@@ -5,11 +5,11 @@ package org.phoenixframework.channel
  */
 interface PhoenixChannelStateListener {
 
-  fun onJoined()
+  fun onJoined(channel: Channel)
 
-  fun onJoining()
+  fun onJoining(channel: Channel)
 
-  fun onError(throwable: Throwable?)
+  fun onError(channel: Channel, throwable: Throwable?)
 
-  fun onClosed()
+  fun onClosed(channel: Channel)
 }
