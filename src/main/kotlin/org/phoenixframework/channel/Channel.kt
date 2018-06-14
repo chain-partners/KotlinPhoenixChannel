@@ -45,6 +45,8 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     listeners.clear()
   }
 
+  fun getState(): ChannelState = state.get()
+
   /**
    * Internal for testing
    */
@@ -256,7 +258,6 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   /**
    * Implements test helper methods. Only tests can use below methods.
    */
-  internal fun getState() = state.get()
   internal fun setJoinRef(ref: String) {
     joinRef = ref
   }
