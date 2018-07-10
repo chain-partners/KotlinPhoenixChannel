@@ -184,8 +184,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
         message.ref?.let {
           trigger(it, message)
         }
-        eventBindings.filter { it.event == message.event }
-            .forEach { it.success?.invoke(message) }
+        synchronized(eventBindings) {
+          eventBindings.filter { it.event == message.event }
+              .forEach { it.success?.invoke(message) }
+        }
       }
     }
   }
