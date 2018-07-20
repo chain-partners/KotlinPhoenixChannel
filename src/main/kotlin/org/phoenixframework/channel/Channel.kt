@@ -4,7 +4,6 @@ import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
 import org.phoenixframework.PhoenixMessageSender
 import java.io.IOException
-import java.util.ArrayList
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
@@ -25,7 +24,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   private val refBindings = ConcurrentHashMap<String,
       // Pair<Success, Failure>
       Pair<((Message?) -> Unit)?, ((Message?, Throwable?) -> Unit)?>>()
-  private val eventBindings = ArrayList<EventBinding>()
+  private val eventBindings = ConcurrentHashMap<String, EventBinding>()
 
   private var joinRef: String? = null
   private var state = AtomicReference<ChannelState>(ChannelState.CLOSED)
@@ -135,9 +134,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   fun on(event: String, success: ((Message?) -> Unit)? = null,
       failure: ((Throwable?, Message?) -> Unit)? = null): Channel {
-    synchronized(eventBindings) {
-      this.eventBindings.add(EventBinding(event, success, failure))
-    }
+    this.eventBindings[event] = EventBinding(event, success, failure)
     return this
   }
 
@@ -148,15 +145,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    * @return The instance's self
    */
   fun off(event: String): Channel {
-    synchronized(eventBindings) {
-      val bindingIter = eventBindings.iterator()
-      while (bindingIter.hasNext()) {
-        if (bindingIter.next().event == event) {
-          bindingIter.remove()
-          break
-        }
-      }
-    }
+    eventBindings.remove(event)
     return this
   }
 
@@ -184,10 +173,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
         message.ref?.let {
           trigger(it, message)
         }
-        synchronized(eventBindings) {
-          eventBindings.filter { it.event == message.event }
-              .forEach { it.success?.invoke(message) }
-        }
+        eventBindings[message.event]?.success?.invoke(message)
       }
     }
   }
@@ -195,7 +181,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun retrieveFailure(response: Message? = null, throwable: Throwable? = null) {
     updateState(ChannelState.ERROR, throwable)
     refBindings.forEach { it.value.second?.invoke(response, throwable) }
-    eventBindings.forEach { it.failure?.invoke(throwable, response) }
+    eventBindings.forEach { it.value.failure?.invoke(throwable, response) }
     clearEventBindings()
     if (messageSender.canSendMessage() && rejoinOnFailure) {
       startRejoinTimer()
