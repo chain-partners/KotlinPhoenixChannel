@@ -18,24 +18,24 @@ import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.timerTask
 
 class Socket @JvmOverloads constructor(
     okHttpClient: OkHttpClient? = null,
     private val endpointUri: String,
-    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL)
-  : PhoenixMessageSender {
+    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL) : PhoenixMessageSender {
 
   private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
       .apply { configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) }
   private val httpClient: OkHttpClient = okHttpClient ?: OkHttpClient()
   private var webSocket: WebSocket? = null
   private val channels: ConcurrentHashMap<String, Channel> = ConcurrentHashMap()
-  private var refNumber = 1
+  private var refNumber = AtomicInteger(1)
 
   private var listeners = mutableSetOf<PhoenixSocketEventListener>()
 
-  private var timer: Timer = Timer("org.phoenixframework.socket.Socket Timer For $endpointUri")
+  private var timer: Timer = Timer("Socket Timer For $endpointUri")
   private var timeoutTimer: Timer = Timer("Timeout Timer For $endpointUri")
   private var heartbeatTimerTask: TimerTask? = null
   var reconnectOnFailure: Boolean = false
@@ -44,14 +44,6 @@ class Socket @JvmOverloads constructor(
   private val timeoutTimerTasks = ConcurrentHashMap<String, TimerTask>()
 
   private var messageBuffer: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
-
-  companion object {
-    private const val DEFAULT_HEARTBEAT_INTERVAL: Long = 7000
-    private const val DEFAULT_RECONNECT_INTERVAL: Long = 5000
-    private const val DEFAULT_TIMEOUT: Long = 5000
-
-    private val LOG = LoggerFactory.getLogger(Socket::class.java)
-  }
 
   fun connect() {
     disconnect()
@@ -80,8 +72,8 @@ class Socket @JvmOverloads constructor(
     node.put("topic", request.topic)
     node.put("event", request.event)
     node.put("ref", request.ref)
-    node.set("payload",
-        request.payload?.let { objectMapper.readTree(it) } ?: objectMapper.createObjectNode())
+    val payload = request.payload?.let { objectMapper.readTree(it) } ?: objectMapper.createObjectNode()
+    node.set("payload", payload)
     send(objectMapper.writeValueAsString(node))
     return this@Socket
   }
@@ -99,7 +91,6 @@ class Socket @JvmOverloads constructor(
     channels.remove(topic)
   }
 
-  // TODO : Implement another tasks to prevent memory leak if needed.
   private fun removeAllChannels() {
     channels.forEach { it.value.clearStateListeners() }
     channels.clear()
@@ -142,7 +133,7 @@ class Socket @JvmOverloads constructor(
   private fun startTimeoutTimer(channel: Channel, request: Message, timeout: Long) {
     val ref = request.ref!!
     val timeoutTimerTask = timerTask {
-      channel.retrieveFailure(throwable = TimeoutException("Timeout from request " + request))
+      channel.retrieveFailure(throwable = TimeoutException("Timeout from request $request"))
     }
     timeoutTimerTasks[ref] = timeoutTimerTask
     timeoutTimer.schedule(timeoutTimerTask, timeout)
@@ -237,19 +228,19 @@ class Socket @JvmOverloads constructor(
    */
   override fun canSendMessage(): Boolean = isConnected()
 
-  override fun sendMessage(message: Message, timeout: Long?) {
+  override fun sendMessage(topic: String, event: String?, payload: String?, timeout: Long?): String {
+    val ref = makeRef()
+    val message = Message(topic, event, payload, ref)
     startTimeoutTimer(channel(message.topic), message, timeout ?: DEFAULT_TIMEOUT)
-    push(message)
+    return ref
   }
 
-  override fun makeRef(): String {
-    synchronized(refNumber) {
-      val ref = refNumber++
-      if (refNumber == Int.MAX_VALUE) {
-        refNumber = 0
-      }
-      return ref.toString()
+  private fun makeRef(): String {
+    val ref = refNumber.getAndIncrement()
+    if (refNumber.get() == Int.MAX_VALUE) {
+      refNumber.set(0)
     }
+    return ref.toString()
   }
 
   private val phoenixWebSocketListener = object : WebSocketListener() {
@@ -287,4 +278,12 @@ class Socket @JvmOverloads constructor(
   internal fun getWebSocket(): WebSocket? = webSocket
 
   internal fun getWebSocketListener(): WebSocketListener = phoenixWebSocketListener
+
+  companion object {
+    private const val DEFAULT_HEARTBEAT_INTERVAL: Long = 7000
+    private const val DEFAULT_RECONNECT_INTERVAL: Long = 5000
+    private const val DEFAULT_TIMEOUT: Long = 5000
+
+    private val LOG = LoggerFactory.getLogger(Socket::class.java)
+  }
 }

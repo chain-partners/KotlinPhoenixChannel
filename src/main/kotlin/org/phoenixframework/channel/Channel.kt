@@ -214,12 +214,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   }
 
   private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null): String? {
-    val ref = messageSender.makeRef()
-    if (this.messageSender.canSendMessage()) {
-      messageSender.sendMessage(Message(topic, event, payload, ref), timeout)
-      return ref
+    if (!messageSender.canSendMessage()) {
+      return null
     }
-    return null
+    messageSender.sendMessage(topic, event, payload, timeout)
   }
 
   /**

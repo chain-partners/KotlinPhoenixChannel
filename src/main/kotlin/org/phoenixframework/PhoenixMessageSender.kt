@@ -2,7 +2,11 @@ package org.phoenixframework
 
 interface PhoenixMessageSender {
 
-  fun makeRef(): String
-  fun sendMessage(message: Message, timeout: Long?)
+  /**
+   * Create [Message] with [topic], [event] and [payload].
+   *
+   * @return [Message.ref] from sent [Message].
+   */
+  fun sendMessage(topic: String, event: String?, payload: String?, timeout: Long?): String
   fun canSendMessage(): Boolean
 }
