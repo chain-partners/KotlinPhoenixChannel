@@ -72,7 +72,6 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       throw IllegalStateException(
           "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
-    updateState(ChannelState.JOINING)
     val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, payload)
     ref?.let {
       refBindings[it] = KeyBinding(it, { message: Message? ->
@@ -86,12 +85,13 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
         failure?.invoke(message, t) ?: Unit
       })
     }
+    updateState(ChannelState.JOINING)
   }
 
   /**
-   * Initiates a org.phoenixframework.channel leave event
+   * Initiates a channel leave event
    *
-   * @throws IllegalStateException Thrown if the org.phoenixframework.channel or org.phoenixframework.socket is closed
+   * @throws IllegalStateException Thrown if the channel or socket is closed
    * @throws IOException           Thrown if the leave request could not be sent
    */
   @Throws(IllegalStateException::class, IOException::class)
@@ -100,30 +100,24 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     if (state.get() == ChannelState.CLOSING) {
       return
     }
-    if (!canPush()) {
-      throw IllegalStateException("Unable to leave org.phoenixframework.channel($topic)")
-    }
     pushMessage(PhoenixEvent.LEAVE.phxEvent)
     state.set(ChannelState.CLOSING)
   }
 
   /**
-   * Pushes a payload to be sent to the org.phoenixframework.channel
+   * Pushes a payload to be sent to the channel
    *
    * @return Message
    * @param event   The event name
    * @param payload The message payload
    * @param timeout The number of milliseconds to wait before triggering a timeout
    * @throws IOException           Thrown if the payload cannot be pushed
-   * @throws IllegalStateException Thrown if the org.phoenixframework.channel has not yet been joined
+   * @throws IllegalStateException Thrown if the channel has not yet been joined
    */
   @Throws(IOException::class)
   fun pushRequest(event: String, payload: String? = null, timeout: Long? = null,
       success: ((Message?) -> Unit)? = null,
       failure: ((Message?, Throwable?) -> Unit)? = null) {
-    if (!canPush()) {
-      throw IllegalStateException("Unable to push event before org.phoenixframework.channel has been joined")
-    }
     val ref = pushMessage(event, payload, timeout)
     ref?.let { refBindings[it] = KeyBinding(it, success, failure) }
   }
@@ -131,8 +125,9 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   /**
    * Add callback on the event
    *
-   * @param event    The event name string.
-   * @param callback The callback to be invoked with the event's message
+   * @param event     The event name string.
+   * @param success   Callback on receiving message.
+   * @param failure   Callback on failure. If [Message] is not null, its event should be [PhoenixEvent.ERROR].
    * @return The instance's self
    */
   fun on(event: String, success: ((Message?) -> Unit)? = null,
@@ -171,7 +166,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       PhoenixEvent.ERROR.phxEvent -> {
         retrieveFailure(response = message)
       }
-      // Includes org.phoenixframework.PhoenixEvent.REPLY
+    // Includes PhoenixEvent.REPLY
       else -> {
         message.ref?.let {
           trigger(it, message)
@@ -203,28 +198,34 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     refBindings.remove(ref)
   }
 
-  /**
-   * public for testing
-   * @return true if the socket is open and the org.phoenixframework.channel has joined
-   */
-  fun canPush(): Boolean {
-    return this.state.get() == ChannelState.JOINED && this.messageSender.canSendMessage()
-  }
-
   private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null): String? {
-    if (!messageSender.canSendMessage()) {
-      return null
+    val state = state.get()!!
+    when (state) {
+      ChannelState.ERROR,
+      ChannelState.CLOSING,
+      ChannelState.JOINING -> {
+        throwIllegalStateException(state, event, payload)
+      }
+      ChannelState.CLOSED -> {
+        if (event != PhoenixEvent.JOIN.phxEvent) {
+          throwIllegalStateException(state, event, payload)
+        }
+      }
+      ChannelState.JOINED -> {
+        // does nothing.
+      }
     }
-    messageSender.sendMessage(topic, event, payload, timeout)
+    if (!messageSender.canSendMessage()) {
+      throw IllegalStateException("Socket is not connected. Message { event: $event, payload: $payload }")
+    }
+    return messageSender.sendMessage(topic, event, payload, timeout)
   }
 
   /**
    * Internal for testing
    */
   internal fun startRejoinTimer() {
-    rejoinTimerTask = timerTask {
-      this@Channel.join()
-    }
+    rejoinTimerTask = timerTask { join() }
     rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL, DEFAULT_REJOIN_INTERVAL)
   }
 
@@ -243,6 +244,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
         eventBindings(${eventBindings.size})=" + $eventBindings }
         """
   }
+
+  @Throws(IllegalStateException::class)
+  private fun throwIllegalStateException(state: ChannelState, event: String, payload: String?) {
+    throw IllegalStateException("Cannot push message on state: ${state.name}. Message { event: $event, payload: $payload }")
   }
 
   /**
@@ -251,6 +256,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun setJoinRef(ref: String) {
     joinRef = ref
   }
+
   internal fun getJoinRef() = joinRef
   internal fun getRefBindings() = refBindings
   internal fun getEventBindings() = eventBindings
