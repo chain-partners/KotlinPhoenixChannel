@@ -3,6 +3,7 @@ package org.phoenixframework.channel
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
 import org.phoenixframework.PhoenixMessageSender
+import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.util.Timer
 import java.util.TimerTask
@@ -12,10 +13,6 @@ import kotlin.concurrent.timerTask
 
 class Channel
 internal constructor(private val messageSender: PhoenixMessageSender, val topic: String) {
-
-  companion object {
-    private const val DEFAULT_REJOIN_INTERVAL: Long = 7000
-  }
 
   var rejoinOnFailure: Boolean = false
 
@@ -226,7 +223,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
    */
   internal fun startRejoinTimer() {
     rejoinTimerTask = timerTask { join() }
-    rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL, DEFAULT_REJOIN_INTERVAL)
+    rejoinTimer.schedule(rejoinTimerTask, DEFAULT_REJOIN_INTERVAL_IN_MILLS, DEFAULT_REJOIN_INTERVAL_IN_MILLS)
   }
 
   private fun cancelRejoinTimer() {
@@ -260,4 +257,10 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun getJoinRef() = joinRef
   internal fun getRefBindings() = refBindings
   internal fun getEventBindings() = eventBindings
+
+
+  companion object {
+
+    private const val DEFAULT_REJOIN_INTERVAL_IN_MILLS = 7000L
+  }
 }

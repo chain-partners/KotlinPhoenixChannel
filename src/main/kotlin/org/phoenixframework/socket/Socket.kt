@@ -24,7 +24,7 @@ import kotlin.concurrent.timerTask
 class Socket @JvmOverloads constructor(
     okHttpClient: OkHttpClient? = null,
     private val endpointUri: String,
-    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL) : PhoenixMessageSender {
+    private val heartbeatInterval: Long = DEFAULT_HEARTBEAT_INTERVAL_IN_MILLIS) : PhoenixMessageSender {
 
   private val objectMapper: ObjectMapper = ObjectMapper().registerKotlinModule()
       .apply { configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false) }
@@ -154,7 +154,7 @@ class Socket @JvmOverloads constructor(
         e.printStackTrace()
       }
     }
-    timer.schedule(reconnectTimerTask, DEFAULT_RECONNECT_INTERVAL)
+    timer.schedule(reconnectTimerTask, DEFAULT_RECONNECT_INTERVAL_IN_MILLIS)
   }
 
   private fun cancelReconnectTimer() {
@@ -231,7 +231,8 @@ class Socket @JvmOverloads constructor(
   override fun sendMessage(topic: String, event: String?, payload: String?, timeout: Long?): String {
     val ref = makeRef()
     val message = Message(topic, event, payload, ref)
-    startTimeoutTimer(channel(message.topic), message, timeout ?: DEFAULT_TIMEOUT)
+    startTimeoutTimer(channel(message.topic), message, timeout ?: DEFAULT_TIMEOUT_IN_MILLIS)
+    push(message)
     return ref
   }
 
@@ -280,9 +281,10 @@ class Socket @JvmOverloads constructor(
   internal fun getWebSocketListener(): WebSocketListener = phoenixWebSocketListener
 
   companion object {
-    private const val DEFAULT_HEARTBEAT_INTERVAL: Long = 7000
-    private const val DEFAULT_RECONNECT_INTERVAL: Long = 5000
-    private const val DEFAULT_TIMEOUT: Long = 5000
+
+    private const val DEFAULT_HEARTBEAT_INTERVAL_IN_MILLIS = 7000L
+    private const val DEFAULT_RECONNECT_INTERVAL_IN_MILLIS = 5000L
+    private const val DEFAULT_TIMEOUT_IN_MILLIS = 5000L
 
     private val LOG = LoggerFactory.getLogger(Socket::class.java)
   }
