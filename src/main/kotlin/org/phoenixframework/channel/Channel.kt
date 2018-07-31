@@ -54,6 +54,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     when (channelState) {
       ChannelState.JOINED -> listeners.forEach { it.onJoined(this) }
       ChannelState.CLOSED -> listeners.forEach { it.onClosed(this) }
+      ChannelState.CLOSING -> listeners.forEach { it.onClosing(this) }
       ChannelState.ERROR -> listeners.forEach { it.onError(this, throwable) }
       ChannelState.JOINING -> listeners.forEach { it.onJoining(this) }
     }
@@ -98,10 +99,14 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   @Throws(IllegalStateException::class, IOException::class)
   fun leave() {
     clearEventBindings()
+    if (state.get() == ChannelState.CLOSING) {
+      return
+    }
     if (!canPush()) {
       throw IllegalStateException("Unable to leave org.phoenixframework.channel($topic)")
     }
     pushMessage(PhoenixEvent.LEAVE.phxEvent)
+    state.set(ChannelState.CLOSING)
   }
 
   /**

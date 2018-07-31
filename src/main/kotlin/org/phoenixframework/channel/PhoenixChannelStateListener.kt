@@ -12,4 +12,6 @@ interface PhoenixChannelStateListener {
   fun onError(channel: Channel, throwable: Throwable?)
 
   fun onClosed(channel: Channel)
+
+  fun onClosing(channel: Channel)
 }
