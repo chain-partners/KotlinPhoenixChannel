@@ -1,9 +1,8 @@
 package org.phoenixframework.channel
 
-import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.Message
+import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixMessageSender
-import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.util.Timer
 import java.util.TimerTask
@@ -70,18 +69,16 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
           "Tried to join at joined or joining state. 'join' can only be invoked when per org.phoenixframework.channel is not joined or joining.")
     }
     val ref = pushMessage(PhoenixEvent.JOIN.phxEvent, payload)
-    ref?.let {
-      refBindings[it] = KeyBinding(it, { message: Message? ->
-        cancelRejoinTimer()
-        joinRef = it
-        updateState(ChannelState.JOINED)
-        success?.invoke(message) ?: Unit
-      }, { message: Message?, t: Throwable? ->
-        cancelRejoinTimer()
-        updateState(ChannelState.CLOSED)
-        failure?.invoke(message, t) ?: Unit
-      })
-    }
+    refBindings[ref] = KeyBinding(ref, { message: Message? ->
+      cancelRejoinTimer()
+      joinRef = ref
+      updateState(ChannelState.JOINED)
+      success?.invoke(message) ?: Unit
+    }, { message: Message?, t: Throwable? ->
+      cancelRejoinTimer()
+      updateState(ChannelState.CLOSED)
+      failure?.invoke(message, t) ?: Unit
+    })
     updateState(ChannelState.JOINING)
   }
 
@@ -195,7 +192,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
     refBindings.remove(ref)
   }
 
-  private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null): String? {
+  private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null): String {
     val state = state.get()!!
     when (state) {
       ChannelState.ERROR,
@@ -257,7 +254,6 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   internal fun getJoinRef() = joinRef
   internal fun getRefBindings() = refBindings
   internal fun getEventBindings() = eventBindings
-
 
   companion object {
 
