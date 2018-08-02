@@ -239,7 +239,7 @@ class Socket @JvmOverloads constructor(
   private fun makeRef(): String {
     val ref = refNumber.getAndIncrement()
     if (refNumber.get() == Int.MAX_VALUE) {
-      refNumber.set(0)
+      refNumber.set(1)
     }
     return ref.toString()
   }

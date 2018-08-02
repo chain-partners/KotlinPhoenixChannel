@@ -193,7 +193,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
   }
 
   private fun pushMessage(event: String, payload: String? = null, timeout: Long? = null): String {
-    val state = state.get()!!
+    val state = getState()
     when (state) {
       ChannelState.ERROR,
       ChannelState.CLOSING,
