@@ -4,6 +4,7 @@ import org.phoenixframework.Message
 import org.phoenixframework.PhoenixEvent
 import org.phoenixframework.PhoenixMessageSender
 import java.io.IOException
+import java.util.Collections
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
@@ -15,7 +16,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
 
   var rejoinOnFailure: Boolean = false
 
-  private var listeners = mutableSetOf<PhoenixChannelStateListener>()
+  private var listeners = Collections.newSetFromMap(ConcurrentHashMap<PhoenixChannelStateListener, Boolean>())
 
   private val refBindings = ConcurrentHashMap<String, KeyBinding>()
   private val eventBindings = ConcurrentHashMap<String, KeyBinding>()
