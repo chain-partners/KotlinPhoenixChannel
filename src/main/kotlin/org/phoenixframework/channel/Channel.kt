@@ -96,7 +96,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       return
     }
     pushMessage(PhoenixEvent.LEAVE.phxEvent)
-    state.set(ChannelState.CLOSING)
+    updateState(ChannelState.CLOSING)
   }
 
   /**
@@ -114,7 +114,7 @@ internal constructor(private val messageSender: PhoenixMessageSender, val topic:
       success: ((Message?) -> Unit)? = null,
       failure: ((Message?, Throwable?) -> Unit)? = null) {
     val ref = pushMessage(event, payload, timeout)
-    ref?.let { refBindings[it] = KeyBinding(it, success, failure) }
+    refBindings[ref] = KeyBinding(ref, success, failure)
   }
 
   /**
