@@ -18,7 +18,7 @@ dependencies {
 ```
 
 # Example
-## Socket Connection <a name="socket_connection"></a>
+## Socket Connection
 ```kotlin
 import org.phoenixframework.channel.*
 import org.phoenixframework.socket.*
@@ -50,8 +50,8 @@ socket.registerEventListener(socketEventListener)
 socket.connect()
 ```
 
-## Join Channel <a name="join_channel"></a>
-Implements `createAndJoinChannel(socket: Socket)` on [Socket Connection](#socket_connection)
+## Join Channel
+Implements `createAndJoinChannel(socket: Socket)` on [Socket Connection](#socket-connection)
 ```kotlin
 fun createAndJoinChannel(socket: Socket) {
   with(socket.createChannel(topic = "rooms:lobby")) {
@@ -69,7 +69,7 @@ fun createAndJoinChannel(socket: Socket) {
 You can register `PhoenixChannelStateListener` to channel to detect `ChannelState` changes.
 
 ### Push Messages
-Implements `pushMessage(channel: Channel)` on [Join Channel](#join_channel)
+Implements `pushMessage(channel: Channel)` on [Join Channel](#join-channel)
 ```kotlin
 fun pushMessage(channel: Channel) {
   val payload = """
@@ -91,7 +91,7 @@ fun pushMessage(channel: Channel) {
 ```
 
 ### Get Event Notifications
-Implements `getEvents(channel: Channel)` on [Join Channel](#join_channel)
+Implements `getEvents(channel: Channel)` on [Join Channel](#join-channel)
 ```kotlin
 fun getEvents(channel: Channel) {
   channel.on(
@@ -105,3 +105,6 @@ fun getEvents(channel: Channel) {
 # Who's using KotlinPhoenixChannel
 - [DAYBIT](https://daybit.com/)
 > Are you using KotlinPhoenixChannel? Please [let me know](mailto:leechhe90+kotlinphoenixlib@gmail.com)!
+
+# License
+KotlinPhoenixChannel is under MIT license. See the [LICENSE](https://github.com/chain-partners/KotlinPhoenixChannel/blob/master/LICENSE) for more info.
