@@ -103,4 +103,5 @@ fun getEvents(channel: Channel) {
 ```
 
 # Who's using KotlinPhoenixChannel
+- [DAYBIT](https://daybit.com/)
 > Are you using KotlinPhoenixChannel? Please [let me know](mailto:leechhe90+kotlinphoenixlib@gmail.com)!
