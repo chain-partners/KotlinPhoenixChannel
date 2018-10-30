@@ -18,6 +18,11 @@ dependencies {
 ```
 
 # Example
+## Example Android App
+For a full sample Android chat app, check out the repository at https://github.com/chain-partners/PhoenixChatAndroid
+
+The quick examples below are used with the [Phoenix Chat Example](https://github.com/chrismccord/phoenix_chat_example)
+
 ## Socket Connection
 ```kotlin
 import org.phoenixframework.channel.*
