@@ -5,8 +5,6 @@ import io.mockk.impl.annotations.RelaxedMockK
 import io.mockk.spyk
 import io.mockk.verify
 import org.junit.Assert.assertEquals
-import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.runBlocking
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

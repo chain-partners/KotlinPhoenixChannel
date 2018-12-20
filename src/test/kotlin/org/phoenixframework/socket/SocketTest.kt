@@ -1,14 +1,13 @@
 package org.phoenixframework.socket
 
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.TimeUnit
 
 class SocketTest {
 
@@ -33,7 +32,7 @@ class SocketTest {
     mockServer.enqueue(MockResponse().withWebSocketUpgrade(phxSocket.getWebSocketListener()))
 
     phxSocket.connect()
-    delay(100, TimeUnit.MILLISECONDS)
+    delay(100)
 
     assertEquals("open", socketEventListener.socketState)
   }
